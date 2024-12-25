@@ -1,14 +1,11 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
+﻿using System.Collections.Generic;
 using System.Threading.Tasks;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using API_Demo_Authen_Author.Models;
 using Microsoft.AspNetCore.Authorization;
-using API_Demo_Authen_Author.Dto;
+using Microsoft.Extensions.Configuration;
 using MySqlConnector;
+using API_Demo_Authen_Author.Dto;
+using System.Security.Claims;
 
 namespace API_Demo_Authen_Author.Controllers
 {
@@ -16,129 +13,66 @@ namespace API_Demo_Authen_Author.Controllers
     [ApiController]
     public class UsersController : ControllerBase
     {
-        private readonly DemoAPIContext _context;
         private readonly IConfiguration _configuration;
 
-        public UsersController(DemoAPIContext context, IConfiguration configuration)
+        public UsersController(IConfiguration configuration)
         {
-            _context = context;
             _configuration = configuration;
         }
 
-        // GET: api/Users
-        [HttpGet("Admin")]
-        [Authorize(Roles = "Admin")]
-        public async Task<ActionResult<IEnumerable<User>>> AdminGetUsers()
+        private async Task<List<UserDto>> FetchUsers()
         {
+            var users = new List<UserDto>();
             var connectionString = _configuration.GetConnectionString("DefaultConnection");
 
-            var users = new List<UserDto>();
+            using var connection = new MySqlConnection(connectionString);
+            await connection.OpenAsync();
 
-            using (var connection = new MySqlConnection(connectionString))
+            using var command = new MySqlCommand("sp_GetAllUsers", connection)
             {
-                await connection.OpenAsync();
+                CommandType = System.Data.CommandType.StoredProcedure
+            };
 
-                using (var command = new MySqlCommand("GetAllUsers", connection))
+            using var reader = await command.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+            {
+                users.Add(new UserDto
                 {
-                    command.CommandType = System.Data.CommandType.StoredProcedure;
-
-                    using (var reader = await command.ExecuteReaderAsync())
-                    {
-                        while (await reader.ReadAsync())
-                        {
-                            users.Add(new UserDto
-                            {
-                                Id = reader.GetInt32("Id"),
-                                Username = reader.GetString("Username"),
-                                FullName = reader.IsDBNull(reader.GetOrdinal("FullName")) ? null : reader.GetString("FullName"),
-                                Email = reader.IsDBNull(reader.GetOrdinal("Email")) ? null : reader.GetString("Email"),
-                                Role = reader.GetString("Role")
-                            });
-                        }
-                    }
-                }
+                    Id = reader.GetInt32("user_id"),
+                    Username = reader.GetString("username"),
+                    Email = reader.GetString("email"),
+                    Role = reader.GetString("role")
+                });
             }
 
-            return Ok(users);
+            return users;
         }
-        
 
-
+        [HttpGet("Admin")]
+        [Authorize(Roles = "admin")]
+        public async Task<IActionResult> AdminGetUsers()
+        {
+            var users = await FetchUsers();
+            return Ok(new 
+            { 
+                Name = ClaimTypes.Name,
+                Role = ClaimTypes.Role                
+            });
+        }
 
         [HttpGet("User")]
         [Authorize]
-        public async Task<ActionResult<IEnumerable<User>>> GetUsers()
+        public async Task<IActionResult> GetUsers()
         {
-            var connectionString = _configuration.GetConnectionString("DefaultConnection");
-
-            var users = new List<UserDto>();
-
-            using (var connection = new MySqlConnection(connectionString))
-            {
-                await connection.OpenAsync();
-
-                using (var command = new MySqlCommand("GetAllUsers", connection))
-                {
-                    command.CommandType = System.Data.CommandType.StoredProcedure;
-
-                    using (var reader = await command.ExecuteReaderAsync())
-                    {
-                        while (await reader.ReadAsync())
-                        {
-                            users.Add(new UserDto
-                            {
-                                Id = reader.GetInt32("Id"),
-                                Username = reader.GetString("Username"),
-                                FullName = reader.IsDBNull(reader.GetOrdinal("FullName")) ? null : reader.GetString("FullName"),
-                                Email = reader.IsDBNull(reader.GetOrdinal("Email")) ? null : reader.GetString("Email"),
-                                Role = reader.GetString("Role")
-                            });
-                        }
-                    }
-                }
-            }
-
+            var users = await FetchUsers();
             return Ok(users);
         }
-        
-        
+
         [HttpGet("Public")]
-        public async Task<ActionResult<IEnumerable<User>>> GetUsersPublic()
+        public async Task<IActionResult> GetUsersPublic()
         {
-            var connectionString = _configuration.GetConnectionString("DefaultConnection");
-
-            var users = new List<UserDto>();
-
-            using (var connection = new MySqlConnection(connectionString))
-            {
-                await connection.OpenAsync();
-
-                using (var command = new MySqlCommand("GetAllUsers", connection))
-                {
-                    command.CommandType = System.Data.CommandType.StoredProcedure;
-
-                    using (var reader = await command.ExecuteReaderAsync())
-                    {
-                        while (await reader.ReadAsync())
-                        {
-                            users.Add(new UserDto
-                            {
-                                Id = reader.GetInt32("Id"),
-                                Username = reader.GetString("Username"),
-                                FullName = reader.IsDBNull(reader.GetOrdinal("FullName")) ? null : reader.GetString("FullName"),
-                                Email = reader.IsDBNull(reader.GetOrdinal("Email")) ? null : reader.GetString("Email"),
-                                Role = reader.GetString("Role")
-                            });
-                        }
-                    }
-                }
-            }
-
+            var users = await FetchUsers();
             return Ok(users);
         }
-
-
-
-
     }
 }

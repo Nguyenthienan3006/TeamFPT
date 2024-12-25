@@ -13,9 +13,6 @@ namespace API_Demo_Authen_Author
         {
             var builder = WebApplication.CreateBuilder(args);
 
-            //builder.WebHost.UseUrls("http://+:5000");
-
-
             builder.Services.AddControllers();
 
             builder.Services.AddEndpointsApiExplorer();
@@ -48,7 +45,7 @@ namespace API_Demo_Authen_Author
             builder.Services.AddDbContext<DemoAPIContext>(options =>
     options.UseMySql(
         builder.Configuration.GetConnectionString("DefaultConnection"),
-        new MySqlServerVersion(new Version(8, 0, 33)) 
+        new MySqlServerVersion(new Version(8, 0, 33))
     ));
 
 
@@ -92,8 +89,6 @@ namespace API_Demo_Authen_Author
             //========================================  Step 4  =============================================
             app.UseAuthentication();
             app.UseAuthorization();
-
-            //app.Urls.Add("http://+:80");
 
             app.MapControllers();
 

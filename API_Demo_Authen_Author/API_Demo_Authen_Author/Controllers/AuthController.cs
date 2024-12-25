@@ -19,24 +19,63 @@ namespace API_Demo_Authen_Author.Controllers
     {
         private readonly IConfiguration _config;
 
-        public AuthController(DemoAPIContext context, IConfiguration config)
+        public AuthController(IConfiguration config)
         {
             _config = config;
         }
 
-        [AllowAnonymous]
+
         [HttpPost("login")]
-        public IActionResult Login([FromBody] LoginDto userLogin)
+        [AllowAnonymous]
+        public Object Login([FromBody] LoginDto userLogin)
         {
             var user = Authenticate(userLogin);
 
             if (user != null)
             {
                 var token = GenerateToken(user);
-                return Ok(token);
+                return Ok(new 
+                {
+                    accessToken = token,
+                    UserName = user.Username
+                });
             }
 
             return NotFound();
+        }
+        
+        
+        [HttpPost("register")]
+        [AllowAnonymous]
+        public IActionResult Register([FromBody] RegisterDto userRegister)
+        {
+            string status;
+
+            var connectionString = _config.GetConnectionString("DefaultConnection");
+
+            using var connection = new MySqlConnection(connectionString);
+            connection.Open();
+
+            using var command = new MySqlCommand("sp_Register", connection)
+            {
+                CommandType = CommandType.StoredProcedure
+            };
+
+            command.Parameters.AddWithValue("p_username", userRegister.UserName);
+            command.Parameters.AddWithValue("p_password", userRegister.PassWord);
+            command.Parameters.AddWithValue("p_email", userRegister.Email);
+            command.Parameters.AddWithValue("p_role", "user");
+
+            var outputParam = new MySqlParameter("p_status", MySqlDbType.VarChar, 30)
+            {
+                Direction = ParameterDirection.Output
+            };
+            command.Parameters.Add(outputParam);
+
+            command.ExecuteNonQuery();
+            status = outputParam.Value.ToString();
+
+            return Ok(status);
         }
 
         private string GenerateToken(User user)
@@ -44,35 +83,12 @@ namespace API_Demo_Authen_Author.Controllers
             var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_config["Jwt:Key"]));
             var credentials = new SigningCredentials(securityKey, SecurityAlgorithms.HmacSha256);
 
-            //Cách 1
-            //var claims = new[]
-            //{
-            //    new Claim(ClaimTypes.NameIdentifier, user.Username),
-            //    new Claim(ClaimTypes.Email, user.Email),
-            //    new Claim(ClaimTypes.Name, user.FullName),
-            //    new Claim(ClaimTypes.Role, user.Role)
-            //};
-
-            //var token = new JwtSecurityToken
-            //    (
-            //        _config["Jwt:Issuer"],
-            //        _config["Jwt:Audience"],
-            //        claims,
-            //        expires: DateTime.Now.AddMinutes(_config.GetValue<int>("Jwt:TokenValidityMins")),
-            //        signingCredentials: credentials
-            //    );
-
-            //return new JwtSecurityTokenHandler().WriteToken(token);
-
-            //Cách 2 (Dễ nhìn hơn)
-
             var tokenDescriptor = new SecurityTokenDescriptor
             {
                 Subject = new ClaimsIdentity(new[]
                 {
                     new Claim(ClaimTypes.NameIdentifier, user.Username),
                     new Claim(ClaimTypes.Email, user.Email),
-                    new Claim(ClaimTypes.Name, user.FullName),
                     new Claim(ClaimTypes.Role, user.Role)
                 }),
                 Issuer = _config["Jwt:Issuer"],
@@ -90,37 +106,32 @@ namespace API_Demo_Authen_Author.Controllers
 
         private User Authenticate(LoginDto userLogin)
         {
-            User currentUser = null;
+            var connectionString = _config.GetConnectionString("DefaultConnection");
 
-            var _connectionString = _config.GetConnectionString("DefaultConnection");
+            using var connection = new MySqlConnection(connectionString);
+            connection.Open();
 
-            using (var connection = new MySqlConnection(_connectionString))
+            using var command = new MySqlCommand("sp_Login", connection)
             {
-                connection.Open();
-                using (var command = new MySqlCommand("AuthenticateUser", connection))
-                {
-                    command.CommandType = CommandType.StoredProcedure;
-                    command.Parameters.AddWithValue("p_username", userLogin.UserName);
-                    command.Parameters.AddWithValue("p_password", userLogin.PassWord);
+                CommandType = CommandType.StoredProcedure
+            };
+            
+            command.Parameters.AddWithValue("p_username", userLogin.UserName);
+            command.Parameters.AddWithValue("p_password", userLogin.PassWord);
 
-                    using (var reader = command.ExecuteReader())
-                    {
-                        if (reader.Read())
-                        {
-                            currentUser = new User
-                            {
-                                Id = reader.GetInt32("id"),
-                                Username = reader.GetString("username"),
-                                Email = reader.GetString("email"),
-                                FullName = reader.GetString("fullname"),
-                                Role = reader.GetString("role")
-                            };
-                        }
-                    }
-                }
+            using var reader = command.ExecuteReader();
+            if (reader.Read())
+            {
+                return new User
+                {
+                    Id = reader.GetInt32("user_id"),
+                    Username = reader.GetString("username"),
+                    Email = reader.GetString("email"),
+                    Role = reader.GetString("role")
+                };
             }
 
-            return currentUser;
+            return null;
         }
     }
 }
