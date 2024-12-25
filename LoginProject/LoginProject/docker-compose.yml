@@ -5,7 +5,7 @@ services:
     build: 
       context: .
     ports:
-      - "5000:5000"
+      - "8080:8080"
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       
@@ -17,10 +17,11 @@ services:
   db:
     image: mysql:8.0.40-debian
     environment:
-      MYSQL_ROOT_PASSWORD: root
-      MYSQL_DATABASE: Demo
+      MYSQL_DATABASE: project_demo
+      MYSQL_USER: dev
+      MYSQL_PASSWORD: 123abc@A
     ports:
-      - "3306:3306" 
+      - "3366:3366" 
     volumes:
       - db_data:/var/lib/mysql
     networks:

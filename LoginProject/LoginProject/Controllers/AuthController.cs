@@ -1,6 +1,7 @@
 ﻿using LoginProject.Data;
 using LoginProject.DTO;
 using LoginProject.Models;
+using LoginProject.Repositories;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity.Data;
 using Microsoft.AspNetCore.Mvc;
@@ -17,55 +18,76 @@ namespace LoginProject.Controllers
     [ApiController]
     public class AuthController : ControllerBase
     {
-        private readonly DatabaseHelper _dbHelper;
+        private readonly UsersRepository _usersRepository;
         private readonly IConfiguration _config;
 
-        public AuthController(DatabaseHelper dbHelper, IConfiguration configuration)
+        public AuthController(UsersRepository usersRepository, IConfiguration configuration)
         {
-            _dbHelper = dbHelper;
+            _usersRepository = usersRepository;
             _config = configuration;
+        }
+
+        [HttpPost("register")]
+        public IActionResult Register([FromBody] User request)
+        {
+            try
+            {
+                if (IsUsernameOrEmailExist(request.Username, request.Email))
+                {
+                    return BadRequest("Username or Email is already existed!");
+                }
+
+                var newUser = new User
+                {
+                    Username = request.Username,
+                    Password = request.Password,
+                    Email = request.Email,
+                };
+                if (_usersRepository.Register(newUser))
+                {
+                    return Ok("Register successfully");
+                }
+
+                return StatusCode(500, "Error occurred during registration");
+
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, $"Internal server error: {ex.Message}");
+            }
+
+
+        }
+        private bool IsUsernameOrEmailExist(string username, string email)
+        {
+            return _usersRepository.GetUserByUsername(username) != null || _usersRepository.GetUserByEmail(email) != null;
         }
 
         [HttpPost("login")]
         public IActionResult Login([FromBody] LoginDTO request)
         {
-            // Xác thực người dùng bằng Stored Procedure
-            User user = AuthenticateUser(request.Username, request.Password);
-            if (user == null) return Unauthorized("Invalid credentials.");
-
-            // Tạo JWT token
-            var token = GenerateJwtToken(user);
-            return Ok(new { Token = token });
-        }
-
-        private User AuthenticateUser(string username, string password)
-        {
-            using var connection = _dbHelper.CreateConnection();
-            using var command = connection.CreateCommand();
-            command.CommandText = "GetUserByUsername";
-            command.CommandType = CommandType.StoredProcedure;
-
-            var parameter = command.CreateParameter();
-            parameter.ParameterName = "input";
-            parameter.Value = username;
-            command.Parameters.Add(parameter);
-
-            connection.Open();
-            using var reader = command.ExecuteReader();
-            if (reader.Read())
+            try
             {
-                if (password == reader["password"].ToString()) // Demo: So sánh mật khẩu trực tiếp
+                if (!ModelState.IsValid)
                 {
-                    return new User
-                    {
-                        Id = Convert.ToInt32(reader["id"]),
-                        Username = reader["username"].ToString(),
-                        Role = reader["role"].ToString()
-                    };
+                    return BadRequest(ModelState);
                 }
+
+                User user = _usersRepository.AuthenticateUser(request.Username, request.Password);
+                if (user == null) return Unauthorized("Invalid credentials.");
+
+
+                var token = GenerateJwtToken(user);
+                return Ok(new { Token = token });
             }
-            return null;
+            catch (Exception ex)
+            {
+                return StatusCode(500, $"Internal server error: {ex.Message}");
+            }
+
         }
+
+
 
         private string GenerateJwtToken(User user)
         {
@@ -75,7 +97,7 @@ namespace LoginProject.Controllers
             {
                 Subject = new ClaimsIdentity(new[]
                 {
-                new Claim(ClaimTypes.Name, user.Username),
+                new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
                 new Claim(ClaimTypes.Role, user.Role)
             }),
                 Issuer = _config["Jwt:Issuer"],

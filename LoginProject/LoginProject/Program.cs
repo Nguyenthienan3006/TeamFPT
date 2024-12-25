@@ -1,5 +1,6 @@
 
 using LoginProject.Data;
+using LoginProject.Repositories;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
@@ -13,11 +14,15 @@ namespace LoginProject
         {
             var builder = WebApplication.CreateBuilder(args);
 
-            builder.WebHost.UseUrls("http://+:5000");
+            //builder.WebHost.UseUrls("http://+:5000");
 
             // Add services to the container.
 
+            builder.Services.AddScoped<UsersRepository>();
+
+
             builder.Services.AddControllers();
+            
             // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
             builder.Services.AddEndpointsApiExplorer();
             builder.Services.AddSwaggerGen(options =>

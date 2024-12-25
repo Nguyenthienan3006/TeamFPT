@@ -1,10 +1,13 @@
 ﻿using LoginProject.Data;
 using LoginProject.Models;
+using LoginProject.Repositories;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
 using Org.BouncyCastle.Ocsp;
 using System.Data;
+using System.Linq.Expressions;
 
 namespace LoginProject.Controllers
 {
@@ -12,42 +15,54 @@ namespace LoginProject.Controllers
     [ApiController]
     public class UsersController : ControllerBase
     {
-        private readonly DatabaseHelper _dbHelper;
+        private readonly UsersRepository _usersRepository;
 
-        public UsersController(DatabaseHelper dbHelper)
+        public UsersController(UsersRepository usersRepository)
         {
-            _dbHelper = dbHelper;
+            _usersRepository = usersRepository;
+        }
+
+
+
+
+        [HttpGet("get-all")]
+        public IActionResult GetAllUsers()
+        {
+            try
+            {
+                var users = _usersRepository.GetAllUsers();
+
+                if (users == null)
+                {
+                    return NotFound("No users found");
+                }
+                return Ok(users);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, $"Internal server error: {ex.Message}");
+            }
         }
 
         [HttpGet("{username}")]
         [Authorize]
         public IActionResult GetUserByUsername(string username)
         {
-            using var connection = _dbHelper.CreateConnection();
-            using var command = connection.CreateCommand();
-            command.CommandText = "GetUserByUsername";
-            command.CommandType = CommandType.StoredProcedure;
-
-            var parameter = command.CreateParameter();
-            parameter.ParameterName = "input";
-            parameter.Value = username;
-            command.Parameters.Add(parameter);
-
-            connection.Open();
-            using var reader = command.ExecuteReader();
-            if (reader.Read())
+            try
             {
-                return Ok(new User
+                var user = _usersRepository.GetUserByUsername(username);
+
+                if (user == null)
                 {
-                    Id = Convert.ToInt32(reader["id"]),
-                    Username = reader["username"].ToString(),
-                    Password = reader["password"].ToString(),
-                    Email = reader["email"].ToString(),
-                    Role = reader["role"].ToString()
-                });
+                    return NotFound();
+                }
+                return Ok(user);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, $"Internal server error: {ex.Message}");
             }
 
-            return NotFound();
         }
     }
 }

@@ -13,5 +13,8 @@ namespace LoginProject.Data
         }
 
         public IDbConnection CreateConnection() => new MySqlConnection(_connectionString);
+
+
+        
     }
 }
