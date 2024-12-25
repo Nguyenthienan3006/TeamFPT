@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 
-namespace TeamFPT.Controllers
+namespace API_Demo_Authen_Author.Controllers
 {
     [ApiController]
     [Route("[controller]")]
