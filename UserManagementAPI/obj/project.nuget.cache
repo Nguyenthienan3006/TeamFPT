@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "dgSpecHash": "uVjZZGHUqwRrYK1gFGL1wDZRNtWRkV5VACwpJexRj+1QFrUtfZNy4e8SzTt0F/AVoEV2UM7kkJZbM9Vi7QSlpg==",
+  "dgSpecHash": "lCQW8m4guMmMiM0UDSudJdowNxzEe4D0Jvv8asxDyoJ7x7zeZGqhgUOzv6xJ3P6d2gdVzv9kJ2qItJvnQ8yD9g==",
   "success": true,
-  "projectFilePath": "D:\\PRN231\\UserManagementAPI\\UserManagementAPI\\UserManagementAPI.csproj",
+  "projectFilePath": "D:\\GitKraken\\TeamFPT\\UserManagementAPI\\UserManagementAPI.csproj",
   "expectedPackageFiles": [
     "C:\\Users\\Admin\\.nuget\\packages\\bcrypt.net\\0.1.0\\bcrypt.net.0.1.0.nupkg.sha512",
     "C:\\Users\\Admin\\.nuget\\packages\\bouncycastle.cryptography\\2.2.1\\bouncycastle.cryptography.2.2.1.nupkg.sha512",

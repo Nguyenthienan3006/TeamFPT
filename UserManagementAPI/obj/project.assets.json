@@ -2811,11 +2811,11 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "D:\\PRN231\\UserManagementAPI\\UserManagementAPI\\UserManagementAPI.csproj",
+      "projectUniqueName": "D:\\GitKraken\\TeamFPT\\UserManagementAPI\\UserManagementAPI.csproj",
       "projectName": "UserManagementAPI",
-      "projectPath": "D:\\PRN231\\UserManagementAPI\\UserManagementAPI\\UserManagementAPI.csproj",
+      "projectPath": "D:\\GitKraken\\TeamFPT\\UserManagementAPI\\UserManagementAPI.csproj",
       "packagesPath": "C:\\Users\\Admin\\.nuget\\packages\\",
-      "outputPath": "D:\\PRN231\\UserManagementAPI\\UserManagementAPI\\obj\\",
+      "outputPath": "D:\\GitKraken\\TeamFPT\\UserManagementAPI\\obj\\",
       "projectStyle": "PackageReference",
       "fallbackFolders": [
         "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
