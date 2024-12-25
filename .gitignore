@@ -2,3 +2,9 @@
 .vs/
 
 TeamFPT/TeamFPT/obj/
+
+TeamFPT/TeamFPT/bin/
+
+*.csproj
+
+*.user
