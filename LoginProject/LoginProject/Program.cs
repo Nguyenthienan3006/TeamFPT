@@ -1,6 +1,7 @@
 
 using LoginProject.Data;
 using LoginProject.Repositories;
+using LoginProject.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
@@ -18,7 +19,9 @@ namespace LoginProject
 
             // Add services to the container.
 
-            builder.Services.AddScoped<UsersRepository>();
+            builder.Services.AddScoped<UsersService>();
+
+            builder.Services.AddTransient<EmailService>();
 
 
             builder.Services.AddControllers();

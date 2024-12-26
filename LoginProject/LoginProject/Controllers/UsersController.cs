@@ -15,11 +15,11 @@ namespace LoginProject.Controllers
     [ApiController]
     public class UsersController : ControllerBase
     {
-        private readonly UsersRepository _usersRepository;
+        private readonly UsersService _usersService;
 
-        public UsersController(UsersRepository usersRepository)
+        public UsersController(UsersService usersService)
         {
-            _usersRepository = usersRepository;
+            _usersService = usersService;
         }
 
 
@@ -30,7 +30,7 @@ namespace LoginProject.Controllers
         {
             try
             {
-                var users = _usersRepository.GetAllUsers();
+                var users = _usersService.GetAllUsers();
 
                 if (users == null)
                 {
@@ -50,7 +50,7 @@ namespace LoginProject.Controllers
         {
             try
             {
-                var user = _usersRepository.GetUserByUsername(username);
+                var user = _usersService.GetUserByUsername(username);
 
                 if (user == null)
                 {
