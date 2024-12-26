@@ -30,7 +30,7 @@ namespace TeamFPT.Controllers
         public IActionResult GetUserInfo()
         {
             // Lấy thông tin từ claim của JWT token
-            var username = User.Identity?.Name;
+            var username = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (string.IsNullOrEmpty(username))
                 return Unauthorized("Token không hợp lệ.");
 
@@ -53,7 +53,7 @@ namespace TeamFPT.Controllers
             if (user == null) return Unauthorized("Invalid credentials.");
 
             var token = _jwtTokenGenerator.GenerateToken(user);
-            return Ok(new { token });
+            return Ok(token);
         }
 
         [HttpPost("register")]

@@ -52,7 +52,7 @@ namespace TeamFPT.Repositories
             connection.Open();
             command.ExecuteNonQuery();
         }
-        public User GetUserByUsername(string username)
+        public User? GetUserByUsername(string username)
         {
             using var connection = new MySqlConnection(_connectionString);
             using var command = new MySqlCommand("sp_GetUserByUsername", connection)
