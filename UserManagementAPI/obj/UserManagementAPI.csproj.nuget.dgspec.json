@@ -1,17 +1,17 @@
 {
   "format": 1,
   "restore": {
-    "D:\\GitKraken\\TeamFPT\\UserManagementAPI\\UserManagementAPI.csproj": {}
+    "D:\\PRN231\\UserManagementAPI\\UserManagementAPI\\UserManagementAPI.csproj": {}
   },
   "projects": {
-    "D:\\GitKraken\\TeamFPT\\UserManagementAPI\\UserManagementAPI.csproj": {
+    "D:\\PRN231\\UserManagementAPI\\UserManagementAPI\\UserManagementAPI.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "D:\\GitKraken\\TeamFPT\\UserManagementAPI\\UserManagementAPI.csproj",
+        "projectUniqueName": "D:\\PRN231\\UserManagementAPI\\UserManagementAPI\\UserManagementAPI.csproj",
         "projectName": "UserManagementAPI",
-        "projectPath": "D:\\GitKraken\\TeamFPT\\UserManagementAPI\\UserManagementAPI.csproj",
+        "projectPath": "D:\\PRN231\\UserManagementAPI\\UserManagementAPI\\UserManagementAPI.csproj",
         "packagesPath": "C:\\Users\\Admin\\.nuget\\packages\\",
-        "outputPath": "D:\\GitKraken\\TeamFPT\\UserManagementAPI\\obj\\",
+        "outputPath": "D:\\PRN231\\UserManagementAPI\\UserManagementAPI\\obj\\",
         "projectStyle": "PackageReference",
         "fallbackFolders": [
           "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
