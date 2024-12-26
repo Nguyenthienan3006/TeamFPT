@@ -84,6 +84,7 @@ public class AuthController : ControllerBase
         await _emailService.SendEmailAsync(user.Email, "Reset Password OTP", $"Your OTP is: {otp}");
 
         return Ok("OTP has been sent to your email.");
+        
     }
 
     [HttpPost("reset-password")]
