@@ -15,7 +15,7 @@ namespace TeamFPT.Controllers
 
 		public AuthenticationController(ConnectService connectService, JwtService jwtService)
 		{
-			_connectService = connectService ?? throw new ArgumentNullException(nameof(connectService));
+			_connectService = connectService ;
 			_jwtService = jwtService;
 		}
 
@@ -30,16 +30,12 @@ namespace TeamFPT.Controllers
 
 			var user = _connectService.Authenticate(userLogin);
 
-			if (user != null)
+			if (user != null && user.IsValid==true)
 			{
 				var token = _jwtService.GenerateToken(user);
 
-				var response = new
-				{
-					Username = user.Username,
-					Token = token
-				};
-				return Ok(response);
+				
+				return Ok(token);
 			}
 
 			return Unauthorized("Invalid credentials.");

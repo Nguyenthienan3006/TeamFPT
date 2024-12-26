@@ -2,7 +2,7 @@
 
 services:
   api:
-    build: 
+    build:
       context: .
     ports:
       - "8080:8080"
@@ -10,24 +10,27 @@ services:
       - ASPNETCORE_ENVIRONMENT=Development
     depends_on:
       - db
+    volumes:
+      - app_data:/app/data
     networks:
       - app-network
 
   db:
     image: mysql:8.0.40-debian
     ports:
-      - "3366:3306" 
+      - "3366:3306"
     environment:
-      MYSQL_USER: dev                    
-      MYSQL_PASSWORD: 123abc@A 
-      MYSQL_DATABASE: project_demo 
+      MYSQL_USER: dev
+      MYSQL_PASSWORD: 123abc@A
+      MYSQL_DATABASE: project_demo
     volumes:
       - db_data:/var/lib/mysql
     networks:
       - app-network
 
 volumes:
-  db_data:
+  app_data: # Used for the API service
+  db_data:  # Used for MySQL data persistence
 
 networks:
   app-network:

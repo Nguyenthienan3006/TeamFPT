@@ -18,7 +18,9 @@ namespace TeamFPT
             // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
             builder.Services.AddEndpointsApiExplorer();
 			builder.Services.AddScoped<ConnectService>();
+			builder.Services.AddScoped<EmailService>();
 			builder.Services.AddScoped<JwtService>();
+			
 			builder.Services.AddSwaggerGen(options =>
 			{
 				var jwtSecurityScheme = new OpenApiSecurityScheme
@@ -43,7 +45,7 @@ namespace TeamFPT
 				});
 			});
 
-			//create JWT
+			
 			builder.Services.AddAuthentication (
                 options =>
                 {
@@ -83,11 +85,8 @@ namespace TeamFPT
 			}
 
             app.UseHttpsRedirection();
-
-            app.UseAuthorization();
-            app.UseAuthentication ();
-
-
+			app.UseAuthentication();
+			app.UseAuthorization();
             app.MapControllers();
 
             app.Run();

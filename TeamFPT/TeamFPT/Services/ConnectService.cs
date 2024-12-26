@@ -22,11 +22,11 @@ namespace TeamFPT.Services
 			using (var connection = new MySqlConnection(_connectionString))
 			{
 				connection.Open();
-				using (var command = new MySqlCommand("sp_Login", connection))
+				using (var command = new MySqlCommand("GetUser", connection))
 				{
 					command.CommandType = CommandType.StoredProcedure;
-					command.Parameters.AddWithValue("p_username", userLogin.UserName);
-					command.Parameters.AddWithValue("p_password", userLogin.PassWord);
+					command.Parameters.AddWithValue("inputname", userLogin.UserName);
+					command.Parameters.AddWithValue("inputpass", userLogin.PassWord);
 
 					using (var reader = command.ExecuteReader())
 					{
@@ -34,11 +34,11 @@ namespace TeamFPT.Services
 						{
 							currentUser = new User
 							{
-								Id = reader.GetInt32("user_id"),
-								Username = reader.GetString("username"),
-
+								Id = reader.GetInt32("id"),
+								Username = reader.GetString("name"),
 								Email = reader.GetString("email"),
-								Role = reader.GetString("role")
+								Role = reader.GetString("role"),
+								IsValid = reader.GetBoolean("isvalid")
 							};
 						}
 					}
@@ -47,5 +47,78 @@ namespace TeamFPT.Services
 
 			return currentUser;
 		}
+		public List<User> GetAllUsers()
+		{
+			var users = new List<User>();
+
+			using (var connection = new MySqlConnection(_connectionString))
+			{
+				connection.Open();
+				using (var command = new MySqlCommand("GetAllUsers", connection))
+				{
+					command.CommandType = CommandType.StoredProcedure;
+
+					using (var reader = command.ExecuteReader())
+					{
+						while (reader.Read())
+						{
+							var user = new User
+							{
+								Id = reader.GetInt32("id"),
+								Username = reader.GetString("name"),
+								Email = reader.GetString("email"),
+								Role = reader.GetString("role"),
+								
+							};
+							users.Add(user);
+						}
+					}
+				}
+			}
+
+			return users;
+		}
+
+
+		public void RegisterUser(RegisterRequestModel requestModel)
+		{
+			using (var connection = new MySqlConnection(_connectionString))
+			{
+				connection.Open();
+
+				using (var command = new MySqlCommand("Register", connection))  
+				{
+					command.CommandType = CommandType.StoredProcedure;
+
+					// Add the parameters: name, password, email
+					command.Parameters.AddWithValue("registername", requestModel.Username);
+					command.Parameters.AddWithValue("registerpassword", requestModel.Password);
+					command.Parameters.AddWithValue("registeremail", requestModel.Email);
+
+					var result = command.ExecuteNonQuery();  
+				}
+			}
+
+		}
+
+		public void VerifyUser(string username, string pass)
+		{
+			using (var connection = new MySqlConnection(_connectionString))
+			{
+				connection.Open();
+
+				using (var command = new MySqlCommand("VerifySuccess", connection))
+				{
+					command.CommandType = CommandType.StoredProcedure;
+
+					command.Parameters.AddWithValue("inputname", username);
+					command.Parameters.AddWithValue("inputpass", pass);
+
+					var result = command.ExecuteNonQuery();
+				}
+			}
+
+		}
 	}
+
 }
