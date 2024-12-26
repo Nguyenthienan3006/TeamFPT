@@ -77,6 +77,22 @@ namespace TeamFPT.Repositories
 
             return null;
         }
+        public bool UpdateUser(User user)
+        {
+            using var connection = new MySqlConnection(_connectionString);
+            using var command = new MySqlCommand("UpdateUser", connection)
+            {
+                CommandType = CommandType.StoredProcedure
+            };
+
+            command.Parameters.AddWithValue("p_UserId", user.UserId);
+            command.Parameters.AddWithValue("p_Username", user.Username);
+            command.Parameters.AddWithValue("p_Email", user.Email);
+
+            connection.Open();
+            int rowsAffected = command.ExecuteNonQuery();
+            return rowsAffected > 0;
+        }
 
     }
 }
