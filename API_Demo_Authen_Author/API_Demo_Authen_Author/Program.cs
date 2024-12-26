@@ -1,4 +1,5 @@
 ﻿using API_Demo_Authen_Author.Models;
+using API_Demo_Authen_Author.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -40,6 +41,10 @@ namespace API_Demo_Authen_Author
                     { jwtSecurityScheme, Array.Empty<string>() }
                 });
             });
+
+            builder.Services.AddScoped<IUserService, UserService>();
+            builder.Services.AddScoped<ITokenService, TokenService>();
+            builder.Services.AddScoped<IEmailService, EmailService>();
 
             //========================================  Step 1  =============================================
             builder.Services.AddDbContext<DemoAPIContext>(options =>

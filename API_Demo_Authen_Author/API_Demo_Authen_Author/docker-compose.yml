@@ -19,7 +19,7 @@ services:
     environment:
       MYSQL_USER: dev
       MYSQL_PASSWORD: 123abc@A
-      MYSQL_DATABASE: project_demo
+      MYSQL_DATABASE: AnNT_DB
 
     ports:
       - "3366:3306" 

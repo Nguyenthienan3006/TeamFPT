@@ -1,15 +1,7 @@
 ﻿using API_Demo_Authen_Author.Dto;
-using API_Demo_Authen_Author.Models;
+using API_Demo_Authen_Author.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore.Metadata.Internal;
-using Microsoft.Extensions.Configuration;
-using Microsoft.IdentityModel.Tokens;
-using MySqlConnector;
-using System.Data;
-using System.IdentityModel.Tokens.Jwt;
-using System.Security.Claims;
-using System.Text;
 
 namespace API_Demo_Authen_Author.Controllers
 {
@@ -17,11 +9,15 @@ namespace API_Demo_Authen_Author.Controllers
     [ApiController]
     public class AuthController : ControllerBase
     {
-        private readonly IConfiguration _config;
+        private readonly ITokenService _tokenService;
+        private readonly IUserService _userService;
+        private readonly IEmailService _emailService;
 
-        public AuthController(IConfiguration config)
+        public AuthController(ITokenService tokenService, IUserService userService, IEmailService emailService)
         {
-            _config = config;
+            _tokenService = tokenService;
+            _userService = userService;
+            _emailService = emailService;
         }
 
 
@@ -29,15 +25,15 @@ namespace API_Demo_Authen_Author.Controllers
         [AllowAnonymous]
         public Object Login([FromBody] LoginDto userLogin)
         {
-            var user = Authenticate(userLogin);
+            var user = _userService.Authenticate(userLogin);
 
             if (user != null)
             {
-                var token = GenerateToken(user);
+                var token = _tokenService.GenerateToken(user);
                 return Ok(new 
                 {
-                    accessToken = token,
-                    UserName = user.Username
+                    UserName = user.Username,
+                    accessToken = token
                 });
             }
 
@@ -47,91 +43,47 @@ namespace API_Demo_Authen_Author.Controllers
         
         [HttpPost("register")]
         [AllowAnonymous]
-        public IActionResult Register([FromBody] RegisterDto userRegister)
+        public async Task<IActionResult> RegisterAsync([FromBody] RegisterDto userRegister)
         {
-            string status;
+            var token = Guid.NewGuid().ToString(); // Mã xác thực email
+            //gửi mã về email
+            var verificationLink = $"Your token = {token}";
 
-            var connectionString = _config.GetConnectionString("DefaultConnection");
+            bool isEmailSent = await _emailService.SendEmailAsync(userRegister.Email, "Email Verification", verificationLink);
 
-            using var connection = new MySqlConnection(connectionString);
-            connection.Open();
-
-            using var command = new MySqlCommand("sp_Register", connection)
+            if (isEmailSent)
             {
-                CommandType = CommandType.StoredProcedure
-            };
-
-            command.Parameters.AddWithValue("p_username", userRegister.UserName);
-            command.Parameters.AddWithValue("p_password", userRegister.PassWord);
-            command.Parameters.AddWithValue("p_email", userRegister.Email);
-            command.Parameters.AddWithValue("p_role", "user");
-
-            var outputParam = new MySqlParameter("p_status", MySqlDbType.VarChar, 30)
-            {
-                Direction = ParameterDirection.Output
-            };
-            command.Parameters.Add(outputParam);
-
-            command.ExecuteNonQuery();
-            status = outputParam.Value.ToString();
-
-            return Ok(status);
-        }
-
-        private string GenerateToken(User user)
-        {
-            var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_config["Jwt:Key"]));
-            var credentials = new SigningCredentials(securityKey, SecurityAlgorithms.HmacSha256);
-
-            var tokenDescriptor = new SecurityTokenDescriptor
-            {
-                Subject = new ClaimsIdentity(new[]
+                bool result = await _userService.RegisterUserAsync(userRegister, token);
+                if (result)
                 {
-                    new Claim(ClaimTypes.NameIdentifier, user.Username),
-                    new Claim(ClaimTypes.Email, user.Email),
-                    new Claim(ClaimTypes.Role, user.Role)
-                }),
-                Issuer = _config["Jwt:Issuer"],
-                Expires = DateTime.Now.AddMinutes(_config.GetValue<int>("Jwt:TokenValidityMins")),
-                Audience = _config["Jwt:Audience"],
-                SigningCredentials = credentials
-            };
+                    //nếu gửi mail thành công thì thêm người dùng vào DB
+                    return Ok("Registration successful. Please verify your email.");
+                }
+                else
+                {
+                    return StatusCode(500, "Something went wrong");
+                }
 
-            var tokenHandler = new JwtSecurityTokenHandler();
-            var securityToken = tokenHandler.CreateToken(tokenDescriptor);
-            var accessToken = tokenHandler.WriteToken(securityToken);
-
-            return accessToken;
-        }
-
-        private User Authenticate(LoginDto userLogin)
-        {
-            var connectionString = _config.GetConnectionString("DefaultConnection");
-
-            using var connection = new MySqlConnection(connectionString);
-            connection.Open();
-
-            using var command = new MySqlCommand("sp_Login", connection)
-            {
-                CommandType = CommandType.StoredProcedure
-            };
+            }            
             
-            command.Parameters.AddWithValue("p_username", userLogin.UserName);
-            command.Parameters.AddWithValue("p_password", userLogin.PassWord);
 
-            using var reader = command.ExecuteReader();
-            if (reader.Read())
+            return BadRequest("Registration failed.");
+        }
+        
+        
+        [HttpPost("verifyEmail")]
+        [AllowAnonymous]
+        public async Task<IActionResult> VerifyEmail([FromBody] string token, string email)
+        {
+            var result = _userService.VerifyEmailAsync(token);
+
+            if(result != null)
             {
-                return new User
-                {
-                    Id = reader.GetInt32("user_id"),
-                    Username = reader.GetString("username"),
-                    Email = reader.GetString("email"),
-                    Role = reader.GetString("role")
-                };
+                return Ok(result);
             }
 
-            return null;
+            return BadRequest("Registration failed.");
         }
+
     }
 }
