@@ -47,6 +47,32 @@ namespace TeamFPT.Services
 
 			return currentUser;
 		}
+		public bool IsEmailExisted(ResetPassRequestModel model)
+		{
+			bool userExists = false;
+
+			using (var connection = new MySqlConnection(_connectionString))
+			{
+				connection.Open();
+				using (var command = new MySqlCommand("GetEmail", connection))
+				{
+					command.CommandType = CommandType.StoredProcedure;
+					command.Parameters.AddWithValue("inputname", model.Username);
+					command.Parameters.AddWithValue("inputemail", model.Email);  
+
+					using (var reader = command.ExecuteReader())
+					{
+						if (reader.Read())
+						{
+							userExists = true;  
+						}
+					}
+				}
+			}
+
+			return userExists; 
+		}
+
 		public List<User> GetAllUsers()
 		{
 			var users = new List<User>();
@@ -80,7 +106,7 @@ namespace TeamFPT.Services
 		}
 
 
-		public void RegisterUser(RegisterRequestModel requestModel)
+		public void RegisterUser(string name, string pass, string email, string otp)
 		{
 			using (var connection = new MySqlConnection(_connectionString))
 			{
@@ -90,10 +116,11 @@ namespace TeamFPT.Services
 				{
 					command.CommandType = CommandType.StoredProcedure;
 
-					// Add the parameters: name, password, email
-					command.Parameters.AddWithValue("registername", requestModel.Username);
-					command.Parameters.AddWithValue("registerpassword", requestModel.Password);
-					command.Parameters.AddWithValue("registeremail", requestModel.Email);
+					command.Parameters.AddWithValue("registername", name);
+					command.Parameters.AddWithValue("registerpassword", pass);
+					command.Parameters.AddWithValue("registeremail", email);
+					command.Parameters.AddWithValue("OTPvalue", otp);
+					command.Parameters.AddWithValue("inputdate", DateTime.UtcNow);
 
 					var result = command.ExecuteNonQuery();  
 				}
@@ -101,24 +128,88 @@ namespace TeamFPT.Services
 
 		}
 
-		public void VerifyUser(string username, string pass)
+		public void VerifyUser(string username)
 		{
 			using (var connection = new MySqlConnection(_connectionString))
 			{
 				connection.Open();
 
-				using (var command = new MySqlCommand("VerifySuccess", connection))
+				using (var command = new MySqlCommand("VerifyUser", connection))
 				{
 					command.CommandType = CommandType.StoredProcedure;
-
 					command.Parameters.AddWithValue("inputname", username);
-					command.Parameters.AddWithValue("inputpass", pass);
-
 					var result = command.ExecuteNonQuery();
 				}
 			}
 
 		}
+		public void ResetPassword(string username,string password)
+		{
+			using (var connection = new MySqlConnection(_connectionString))
+			{
+				connection.Open();
+
+				using (var command = new MySqlCommand("ResetPassword", connection))
+				{
+					command.CommandType = CommandType.StoredProcedure;
+					command.Parameters.AddWithValue("inputname", username);
+					command.Parameters.AddWithValue("inputpass", password);
+					var result = command.ExecuteNonQuery();
+				}
+			}
+
+		}
+		public OTPDto GetOTP(string username)
+		{
+			OTPDto oTPDto = null; 
+
+			using (var connection = new MySqlConnection(_connectionString))
+			{
+				connection.Open();
+
+				using (var command = new MySqlCommand("GetOTP", connection))
+				{
+					command.CommandType = CommandType.StoredProcedure;
+
+					command.Parameters.AddWithValue("inputname", username);
+					command.Parameters.AddWithValue("inputemail", username);
+
+					using (var reader = command.ExecuteReader()) 
+					{
+						if (reader.Read()) 
+						{
+							oTPDto = new OTPDto
+							{
+								OTP = reader.GetString(reader.GetOrdinal("OTP")), 
+								Date = reader.GetDateTime(reader.GetOrdinal("Time")), 
+							};
+						}
+					}
+				}
+			}
+
+			return oTPDto; 
+		}
+		public void ResetPassRequest(string email, string otp)
+		{
+			using (var connection = new MySqlConnection(_connectionString))
+			{
+				connection.Open();
+
+				using (var command = new MySqlCommand("ResetPassRequest", connection))
+				{
+					command.CommandType = CommandType.StoredProcedure;
+
+					command.Parameters.AddWithValue("inputemail", email); 
+					command.Parameters.AddWithValue("OTPvalue", otp);    
+					command.Parameters.AddWithValue("inputdate", DateTime.UtcNow); 
+
+					command.ExecuteNonQuery();
+				}
+			}
+		}
+
+
 	}
 
 }

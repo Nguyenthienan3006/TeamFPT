@@ -45,49 +45,6 @@ namespace TeamFPT.Services
 
 			return accessToken;
 		}
-		
-		public string GenerateOtpTken(RegisterRequestModel model)
-		{
-			var otp = _emailService.SendOtpEmail(model.Email);
-
-			var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_config["Jwt:Key"]));
-			var credentials = new SigningCredentials(securityKey, SecurityAlgorithms.HmacSha256);
-
-			var tokenDescriptor = new SecurityTokenDescriptor
-			{
-				Subject = new ClaimsIdentity(new[]
-				{
-					new Claim(ClaimTypes.Email, model.Email),
-					new Claim("otp", otp),
-					new Claim(ClaimTypes.Name, model.Username),
-					new Claim("password", model.Password)
-				}),
-				Issuer = _config["Jwt:Issuer"],
-				Expires = DateTime.Now.AddMinutes(_config.GetValue<int>("Jwt:TokenValidityMins")),
-				Audience = _config["Jwt:Audience"],
-				SigningCredentials = credentials
-			};
-
-			var tokenHandler = new JwtSecurityTokenHandler();
-			var securityToken = tokenHandler.CreateToken(tokenDescriptor);
-			var accessToken = tokenHandler.WriteToken(securityToken);
-			SaveOtpToken(accessToken);
-
-			return accessToken;
-		}
-		public void SaveOtpToken(string otp)
-		{
-			string path = "/app/data/otp_token.txt"; 
-			File.WriteAllText(path, otp);
-		}
-		public string GetStoredOtpToken()
-		{
-			string path = "/app/data/otp_token.txt"; 
-				return File.ReadAllText(path); 
-			
-
-			
-		}
 
 	}
 }

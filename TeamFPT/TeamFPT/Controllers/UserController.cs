@@ -6,6 +6,7 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
 using TeamFPT.Models.API;
+using TeamFPT.Models;
 using TeamFPT.Services;
 
 namespace TeamFPT.Controllers
@@ -44,50 +45,62 @@ namespace TeamFPT.Controllers
 		[HttpPost("Register")]
 		public IActionResult Register([FromBody] RegisterRequestModel requestModel)
 		{
-				_connectService.RegisterUser(requestModel);
-				var token = _jwtService.GenerateOtpTken(requestModel);
-				_jwtService.SaveOtpToken(token);
-				return Ok(token);
+			    string otp = _emailService.SendOtpEmail(requestModel.Email);
+				_connectService.RegisterUser(requestModel.Username,requestModel.Password,requestModel.Email,otp);
+				return Ok("sucess");
 		}
 
 		[AllowAnonymous]
 		[HttpPost("VerifyOtp")]
 		public IActionResult VerifyOtp([FromBody] VerifyOtpRequestModel verifyModel)
 		{
-				var token = _jwtService.GetStoredOtpToken();
-				var claimsPrincipal = ValidateTokenAndExtractClaims(token);
-				if (claimsPrincipal == null)
-				{
-				return BadRequest("Invalid token.");
-				}
-				var tokenOtp = claimsPrincipal?.FindFirst("otp")?.Value;
-				var username = claimsPrincipal.FindFirst(ClaimTypes.Name)?.Value; 
-				var password = claimsPrincipal.FindFirst("password")?.Value;
+			OTPDto oTPDto = _connectService.GetOTP(verifyModel.Email);
+				
 
-			if (tokenOtp != verifyModel.Otp)
+			if (oTPDto.OTP != verifyModel.Otp|| DateTime.UtcNow > oTPDto.Date.AddMinutes(15))
 				{
 					return BadRequest("Invalid OTP.");
 				}
-			_connectService.VerifyUser(username, password);
+			_connectService.VerifyUser(verifyModel.Email);
 
 			return Ok("Verify Sucess");
 			
 		}
 
-		private ClaimsPrincipal ValidateTokenAndExtractClaims(string token)
+		[AllowAnonymous]
+		[HttpPost("ResetPassword")]
+		public IActionResult ResetPass([FromBody] ResetPassRequestModel requestModel)
 		{
-			var tokenHandler = new JwtSecurityTokenHandler();
-			var validationParameters = new TokenValidationParameters
+			if (!_connectService.IsEmailExisted(requestModel))
 			{
-				ValidateIssuer = true,
-				ValidateAudience = true,
-				ValidIssuer = _config["Jwt:Issuer"],
-				ValidAudience = _config["Jwt:Audience"],
-				IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_config["Jwt:Key"]))
-			};
-				var principal = tokenHandler.ValidateToken(token, validationParameters, out var validatedToken);
-				return principal;
-			
+					return BadRequest("Email Not Existed");
+			}
+			string otp =_emailService.SendOtpEmail(requestModel.Email);
+			_connectService.ResetPassRequest(requestModel.Email,otp);
+			return Ok("sucess");
 		}
+
+		[AllowAnonymous]
+		[HttpPost("ConfirmResetPass")]
+		public IActionResult VerifyOtpResetPass([FromBody] VerifyResetPassRequestModel verifyModel)
+		{
+
+			OTPDto oTPDto = _connectService.GetOTP(verifyModel.Email);
+
+			if (verifyModel.Password != verifyModel.RepeatPassword)
+			{
+				return BadRequest("Password and ConfirmPassword are not match");
+			}
+
+			if (oTPDto.OTP != verifyModel.Otp || DateTime.UtcNow > oTPDto.Date.AddMinutes(15))
+			{
+				return BadRequest("Invalid OTP.");
+			}
+			_connectService.ResetPassword(verifyModel.Email,verifyModel.Password);
+
+			return Ok("Reset Sucess");
+
+		}
+		
 	}
 }
