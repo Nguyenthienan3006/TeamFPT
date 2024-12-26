@@ -15,11 +15,13 @@ namespace JwtAuthDemo.Controllers;
 public class AuthController : ControllerBase
 {
     private readonly UserStore _userStore;
+    private readonly EmailService _emailService;
     private readonly IConfiguration _configuration;
 
-    public AuthController(UserStore userStore, IConfiguration configuration)
+    public AuthController(UserStore userStore, EmailService emailService, IConfiguration configuration)
     {
         _userStore = userStore;
+        _emailService = emailService;
         _configuration = configuration;
     }
 
@@ -71,6 +73,34 @@ public class AuthController : ControllerBase
         }
     }
 
+    [HttpPost("forgot-password")]
+    public async Task<IActionResult> ForgotPassword([FromBody] string username)
+    {
+        var user = await _userStore.GetUserByUsernameAsync(username);
+        if (user == null)
+            return NotFound("User not found.");
+
+        var otp = await _userStore.GenerateOtpAsync(user.Id);
+        await _emailService.SendEmailAsync(user.Email, "Reset Password OTP", $"Your OTP is: {otp}");
+
+        return Ok("OTP has been sent to your email.");
+    }
+
+    [HttpPost("reset-password")]
+    public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordRequest request)
+    {
+        var user = await _userStore.GetUserByUsernameAsync(request.Username);
+        if (user == null)
+            return NotFound("User not found.");
+
+        var isValidOtp = await _userStore.ValidateOtpAsync(user.Id, request.Otp);
+        if (!isValidOtp)
+            return BadRequest("Invalid or expired OTP.");
+
+        await _userStore.UpdatePasswordAsync(user.Id, request.NewPassword);
+        return Ok("Password has been updated.");
+    }
+
 
     private string GenerateJwtToken(User user)
     {
@@ -93,4 +123,6 @@ public class AuthController : ControllerBase
 
         return new JwtSecurityTokenHandler().WriteToken(token);
     }
+
+
 }

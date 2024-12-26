@@ -11,7 +11,12 @@ var connectionString = builder.Configuration.GetConnectionString("DefaultConnect
 
 // Đăng ký UserStore
 builder.Services.AddSingleton<UserStore>();
-
+builder.Services.AddSingleton(new EmailService(
+    builder.Configuration["EmailSettings:SmtpServer"],
+    int.Parse(builder.Configuration["EmailSettings:SmtpPort"]),
+    builder.Configuration["EmailSettings:SmtpUser"],
+    builder.Configuration["EmailSettings:SmtpPassword"]
+));
 // Cấu hình JWT
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
