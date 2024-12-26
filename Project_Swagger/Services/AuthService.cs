@@ -47,11 +47,24 @@ namespace Project_Swagger.Services
         public User Authenticate(UserDTO userLogin)
         {
             var currentUser = _userService.GetAnUser(userLogin.UserName, userLogin.PassWord);
+            if (currentUser.IsEmailVerified == false)
+            {
+                return null;
+            }
             if (currentUser != null)
             {
                 return currentUser;
             }
             return null;
+        }
+
+        public bool IsValidPassword(UserRegisterDTO userRegister)
+        {
+            if (!userRegister.Password.Equals(userRegister.Repassword))
+            {
+                return false;
+            }
+            return true;
         }
     }
 }
