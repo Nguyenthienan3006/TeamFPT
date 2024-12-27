@@ -64,7 +64,8 @@ namespace API_Demo_Authen_Author.Services
                     Id = reader.GetInt32("user_id"),
                     Username = reader.GetString("username"),
                     Email = reader.GetString("email"),
-                    Role = reader.GetString("role")
+                    Role = reader.GetString("role"),
+                    IsEmailVerified = reader.GetBoolean("IsEmailVerified")
                 });
             }
 
@@ -92,7 +93,36 @@ namespace API_Demo_Authen_Author.Services
             return result > 0;
         }
 
-        public async Task<bool> VerifyEmailAsync(string token)
+        public async Task<UserDto?> GetUserByEmailAsync(string email)
+        {
+            var connectionString = _config.GetConnectionString("DefaultConnection");
+
+            using var connection = new MySqlConnection(connectionString);
+            await connection.OpenAsync();
+
+            using var command = new MySqlCommand("sp_GetUserByEmail", connection)
+            {
+                CommandType = CommandType.StoredProcedure
+            };
+
+            command.Parameters.AddWithValue("p_email", email);
+
+            using var reader = await command.ExecuteReaderAsync();
+            if (await reader.ReadAsync())
+            {
+                return new UserDto
+                {
+                    Id = reader.GetInt32("user_id"),
+                    Username = reader.GetString("username"),
+                    Email = reader.GetString("email"),
+                    Role = reader.GetString("role")
+                };
+            }
+
+            return null;
+        }
+
+        public async Task<bool> VerifyEmailAsync(string token, int userId, string email)
         {
             var connectionString = _config.GetConnectionString("DefaultConnection");
 
@@ -105,12 +135,42 @@ namespace API_Demo_Authen_Author.Services
             };
 
             command.Parameters.AddWithValue("p_token", token);
+            command.Parameters.AddWithValue("p_email", email);
+            command.Parameters.AddWithValue("p_userId", userId);
+
 
             var result = await command.ExecuteNonQueryAsync();
             return result > 0;
         }
 
+        public async Task<bool> UpdateUserPasswordAsync(int userId, string newPassword)
+        {
+            var connectionString = _config.GetConnectionString("DefaultConnection");
 
+            using var connection = new MySqlConnection(connectionString);
+            await connection.OpenAsync();
+
+            using var command = new MySqlCommand("sp_UpdateUserPassword", connection)
+            {
+                CommandType = CommandType.StoredProcedure
+            };
+
+            // Thêm các tham số cho stored procedure
+            command.Parameters.AddWithValue("p_user_id", userId);
+            command.Parameters.AddWithValue("p_new_password", newPassword);
+
+            // Thực thi stored procedure
+            var result = await command.ExecuteNonQueryAsync();
+
+            // Kiểm tra kết quả và trả về true nếu thành công
+            return result > 0;
+        }
+        public string GenerateRandomPassword(int length)
+        {
+            const string chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()_+[]{}|;:,.<>?";
+            var random = new Random();
+            return new string(new char[length].Select(c => chars[random.Next(chars.Length)]).ToArray());
+        }
     }
 }
 
