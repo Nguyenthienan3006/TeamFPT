@@ -86,11 +86,13 @@ public class UserStore
         await connection.OpenAsync();
 
         var otp = new Random().Next(100000, 999999).ToString();
-
-        using var command = new MySqlCommand("INSERT INTO password_reset_tokens (user_id, otp) VALUES (@UserId, @Otp)", connection);
-        command.Parameters.AddWithValue("@UserId", userId); // Thay đổi thành user_id
-        command.Parameters.AddWithValue("@Otp", otp);
-
+        //sp_GenerateSaveOTP
+        using var command = new MySqlCommand("sp_GenerateSaveOTP", connection)
+        {
+            CommandType = System.Data.CommandType.StoredProcedure
+        };
+        command.Parameters.AddWithValue("p_user_id", userId); 
+        command.Parameters.AddWithValue("p_otp", otp);
         await command.ExecuteNonQueryAsync();
         return otp;
     }
@@ -102,13 +104,15 @@ public class UserStore
     {
         using var connection = new MySqlConnection(_connectionString);
         await connection.OpenAsync();
-
+        //sp_ValidateOTP
         using var command = new MySqlCommand(
-            "SELECT id FROM password_reset_tokens WHERE user_id = @UserId AND otp = @Otp AND is_used = FALSE AND created_at >= NOW() - INTERVAL 15 MINUTE",
-            connection
-        );
-        command.Parameters.AddWithValue("@UserId", userId); // Thay đổi thành user_id
-        command.Parameters.AddWithValue("@Otp", otp);
+            "sp_ValidateOTP", connection
+        )
+        {
+            CommandType = System.Data.CommandType.StoredProcedure
+        };
+        command.Parameters.AddWithValue("p_user_id", userId); 
+        command.Parameters.AddWithValue("p_otp", otp);
 
         using var reader = await command.ExecuteReaderAsync();
         if (await reader.ReadAsync())
@@ -126,8 +130,8 @@ public class UserStore
         using var connection = new MySqlConnection(_connectionString);
         await connection.OpenAsync();
 
-        using var command = new MySqlCommand("UPDATE password_reset_tokens SET is_used = TRUE WHERE id = @TokenId", connection);
-        command.Parameters.AddWithValue("@TokenId", tokenId);
+        using var command = new MySqlCommand("sp_IsUseOTP", connection) { CommandType = System.Data.CommandType.StoredProcedure };
+        command.Parameters.AddWithValue("p_id", tokenId);
         await command.ExecuteNonQueryAsync();
     }
 
@@ -135,10 +139,13 @@ public class UserStore
     {
         using var connection = new MySqlConnection(_connectionString);
         await connection.OpenAsync();
-
-        using var command = new MySqlCommand("UPDATE user SET password = @NewPassword WHERE user_id = @UserId", connection);
-        command.Parameters.AddWithValue("@UserId", userId);
-        command.Parameters.AddWithValue("@NewPassword", newPassword);
+        //sp_UpdatePassword
+        using var command = new MySqlCommand("sp_UpdatePassword", connection)
+        {
+            CommandType = System.Data.CommandType.StoredProcedure
+        }; ;
+        command.Parameters.AddWithValue("p_user_id", userId);
+        command.Parameters.AddWithValue("p_NewPassword", newPassword);
 
         await command.ExecuteNonQueryAsync();
     }
