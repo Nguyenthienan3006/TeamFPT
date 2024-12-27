@@ -62,14 +62,14 @@ namespace Project_Swagger.Controllers
 
                 _emailService.SendEmailAsync(user.Email, "Your code", verificationCode);
             }
-            return Ok(new { Message = "Registration successful. Please check your email for the verification link." });
+            return Ok(new { Message = "Registration successful. Please check your email for the verification code." });
         }
 
         [HttpPost("Verify")]
         [AllowAnonymous]
         public IActionResult Verify([FromBody] string otp)
         {
-            var user = _userService.GetUserByEmail(otp);
+            var user = _userService.GetUserByOTP(otp);
             if (user != null)
             {
                 bool result = _userService.UpdateEmailVerified(user.UserId);
