@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity.Data;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.IdentityModel.Tokens;
+using Org.BouncyCastle.Crypto.Generators;
 using System.Data;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
@@ -48,7 +49,7 @@ namespace LoginProject.Controllers
                     Password = request.Password,
                     Email = request.Email,
                     VerificationToken = token,
-                    TokenExpiration = DateTime.UtcNow.AddHours(24)
+                    VerificationTokenExpiration = DateTime.UtcNow.AddHours(1)
                 };
                 if (_usersService.Register(newUser))
                 {
@@ -74,14 +75,14 @@ namespace LoginProject.Controllers
             return _usersService.GetUserByUsername(username) != null || _usersService.GetUserByEmail(email) != null;
         }
 
-        [HttpGet("verify")]
-        public async Task<IActionResult> VerifyEmail([FromQuery] string token)
+        [HttpPost("verify")]
+        public IActionResult VerifyEmail([FromQuery] string token)
         {
             try
             {
                 var user = _usersService.GetUserByVerificationToken(token);
 
-                if (user == null || user.TokenExpiration < DateTime.UtcNow)
+                if (user == null || user.VerificationTokenExpiration < DateTime.UtcNow)
                 {
                     return BadRequest("Invalid or expired token.");
                 }
@@ -101,7 +102,7 @@ namespace LoginProject.Controllers
         }
 
         [HttpPost("resend-verification")]
-        public async Task<IActionResult> ResendVerificationEmail([FromQuery] ResendVerificationRequest request)
+        public async Task<IActionResult> ResendVerificationEmail([FromBody] ResendVerificationRequest request)
         {
             try
             {
@@ -116,7 +117,7 @@ namespace LoginProject.Controllers
 
 
                 user.VerificationToken = token;
-                user.TokenExpiration = DateTime.UtcNow.AddHours(1);
+                user.VerificationTokenExpiration = DateTime.UtcNow.AddHours(1);
 
                 if (_usersService.UpdateVerificationToken(user))
                 {
@@ -133,6 +134,78 @@ namespace LoginProject.Controllers
             {
                 return StatusCode(500, $"Internal server error: {ex.Message}");
             }
+        }
+
+
+        [HttpPost("forgot-password")]
+        public async Task<IActionResult> ForgotPassword([FromBody] ForgotPassRequest request)
+        {
+            try
+            {
+                if (!ModelState.IsValid)
+                {
+                    return BadRequest(ModelState);
+                }
+
+                var user = _usersService.GetUserByEmail(request.Email);
+                if (user == null)
+                {
+                    return NotFound("User not found.");
+                }
+
+                var resetToken = Guid.NewGuid().ToString();
+                var tokenExpiration = DateTime.UtcNow.AddHours(1);
+
+                user.ResetPasswordToken = resetToken;
+                user.ResetPasswordTokenExpiration = tokenExpiration;
+
+                if(_usersService.UpdateResetPasswordToken(user))
+                {
+                    await _emailService.SendEmailAsync(request.Email, "Password Reset Request",
+                        $"Token: {resetToken}");
+
+                    return Ok("Password reset email sent.");
+                }
+
+                return StatusCode(500, "Error occurred during creating reset password token.");
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, $"Internal server error: {ex.Message}");
+            }
+        }
+
+        [HttpPost("reset-password")]
+        public IActionResult ResetPassword([FromBody] DTO.ResetPasswordRequest request)
+        {
+            try
+            {
+                if (!ModelState.IsValid)
+                {
+                    return BadRequest(ModelState);
+                }
+
+                var user = _usersService.GetUserByResetPasswordToken(request.Token);
+
+                if (user == null || user.ResetPasswordTokenExpiration < DateTime.UtcNow)
+                {
+                    return BadRequest("Invalid or expired token.");
+                }
+
+                if (_usersService.ResetPassword(request.Token,request.NewPassword))
+                {
+                    return Ok("Password has been successfully reset.");
+                }
+                return StatusCode(500, "Error occurred during registration");
+
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, $"Internal server error: {ex.Message}");
+            }
+
+
+            
         }
 
 

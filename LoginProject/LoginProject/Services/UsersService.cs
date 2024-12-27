@@ -14,7 +14,7 @@ namespace LoginProject.Repositories
             _dbHelper = dbHelper;
         }
 
-        public List<User> GetAllUsers()
+        public List<User>? GetAllUsers()
         {
 
             var users = new List<User>();
@@ -31,20 +31,31 @@ namespace LoginProject.Repositories
                 using var reader = command.ExecuteReader();
                 while (reader.Read())
                 {
-                    users.Add(new Models.User
+                    var user = new User
                     {
-                        Id = Convert.ToInt32(reader["user_id"]),
+                        Id = Convert.ToInt32(reader["id"]),
                         Username = reader["username"].ToString(),
                         Email = reader["email"].ToString(),
-                        Role = reader["role"].ToString()
-                    });
+                        Password = reader["password"].ToString(),
+                        Role = reader["role"].ToString(),
+                        IsVerified = Convert.ToBoolean(reader["is_verified"]),
+                        VerificationToken = reader["verification_token"]?.ToString(),
+                        VerificationTokenExpiration = reader["verification_token_expiration"] != DBNull.Value
+                    ? Convert.ToDateTime(reader["verification_token_expiration"])
+                    : (DateTime?)null,
+                        ResetPasswordToken = reader["reset_password_token"]?.ToString(),
+                        ResetPasswordTokenExpiration = reader["reset_password_token_expiration"] != DBNull.Value
+                    ? Convert.ToDateTime(reader["reset_password_token_expiration"])
+                    : (DateTime?)null
+                    };
+                    users.Add(user);
                 }
             }
             catch (Exception ex)
             {
                 Console.WriteLine(ex.Message);
             }
-            return users;
+            return users.Count > 0 ? users:null;
         }
 
         public User GetUserByUsername(string username)
@@ -66,21 +77,24 @@ namespace LoginProject.Repositories
                 using var reader = command.ExecuteReader();
                 if (reader.Read())
                 {
-                    return new User
+                    var user = new User
                     {
                         Id = Convert.ToInt32(reader["id"]),
                         Username = reader["username"].ToString(),
-                        Password = reader["password"].ToString(),
                         Email = reader["email"].ToString(),
+                        Password = reader["password"].ToString(),
                         Role = reader["role"].ToString(),
                         IsVerified = Convert.ToBoolean(reader["is_verified"]),
-                        VerificationToken = reader["verification_token"].ToString(),
-                        VerificationTokenExpiration = Convert.ToDateTime(reader["verification_token_expiration"]),
-                        ResetPasswordToken = reader["reset_password_token"].ToString(),
-                        ResetPasswordTokenExpiration = Convert.ToDateTime(reader["reset_password_token_expiration"])
-
-
+                        VerificationToken = reader["verification_token"]?.ToString(),
+                        VerificationTokenExpiration = reader["verification_token_expiration"] != DBNull.Value
+                    ? Convert.ToDateTime(reader["verification_token_expiration"])
+                    : (DateTime?)null,
+                        ResetPasswordToken = reader["reset_password_token"]?.ToString(),
+                        ResetPasswordTokenExpiration = reader["reset_password_token_expiration"] != DBNull.Value
+                    ? Convert.ToDateTime(reader["reset_password_token_expiration"])
+                    : (DateTime?)null
                     };
+                    return user;
                 }
                 return null;
             }
@@ -111,19 +125,24 @@ namespace LoginProject.Repositories
                 using var reader = command.ExecuteReader();
                 if (reader.Read())
                 {
-                    return new User
+                    var user = new User
                     {
                         Id = Convert.ToInt32(reader["id"]),
                         Username = reader["username"].ToString(),
-                        Password = reader["password"].ToString(),
                         Email = reader["email"].ToString(),
+                        Password = reader["password"].ToString(),
                         Role = reader["role"].ToString(),
                         IsVerified = Convert.ToBoolean(reader["is_verified"]),
-                        VerificationToken = reader["verification_token"].ToString(),
-                        VerificationTokenExpiration = Convert.ToDateTime(reader["verification_token_expiration"]),
-                        ResetPasswordToken = reader["reset_password_token"].ToString(),
-                        ResetPasswordTokenExpiration = Convert.ToDateTime(reader["reset_password_token_expiration"])
+                        VerificationToken = reader["verification_token"]?.ToString(),
+                        VerificationTokenExpiration = reader["verification_token_expiration"] != DBNull.Value
+                    ? Convert.ToDateTime(reader["verification_token_expiration"])
+                    : (DateTime?)null,
+                        ResetPasswordToken = reader["reset_password_token"]?.ToString(),
+                        ResetPasswordTokenExpiration = reader["reset_password_token_expiration"] != DBNull.Value
+                    ? Convert.ToDateTime(reader["reset_password_token_expiration"])
+                    : (DateTime?)null
                     };
+                    return user;
                 }
                 return null;
             }
@@ -158,6 +177,41 @@ namespace LoginProject.Repositories
                     {
                         Id = Convert.ToInt32(reader["id"]),
                         VerificationTokenExpiration = Convert.ToDateTime(reader["verification_token_expiration"]),
+                    };
+                }
+                return null;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.Message);
+                return null;
+
+            }
+        }
+
+        public User GetUserByResetPasswordToken(string token)
+        {
+
+            try
+            {
+                using var connection = _dbHelper.CreateConnection();
+                using var command = connection.CreateCommand();
+                command.CommandText = "GetUserByResetPasswordToken";
+                command.CommandType = CommandType.StoredProcedure;
+
+                var parameter = command.CreateParameter();
+                parameter.ParameterName = "p_token";
+                parameter.Value = token;
+                command.Parameters.Add(parameter);
+
+                connection.Open();
+                using var reader = command.ExecuteReader();
+                if (reader.Read())
+                {
+                    return new User
+                    {
+                        Id = Convert.ToInt32(reader["id"]),
+                        ResetPasswordTokenExpiration = Convert.ToDateTime(reader["reset_password_token_expiration"]),
                     };
                 }
                 return null;
@@ -263,12 +317,12 @@ namespace LoginProject.Repositories
 
                 var resetPasswordToken = command.CreateParameter();
                 resetPasswordToken.ParameterName = "p_reset_password_token";
-                resetPasswordToken.Value = user.VerificationToken;
+                resetPasswordToken.Value = user.ResetPasswordToken;
                 command.Parameters.Add(resetPasswordToken);
 
                 var reset_password_token_expiration = command.CreateParameter();
                 reset_password_token_expiration.ParameterName = "p_reset_password_token_expiration";
-                reset_password_token_expiration.Value = user.VerificationTokenExpiration;
+                reset_password_token_expiration.Value = user.ResetPasswordTokenExpiration;
                 command.Parameters.Add(reset_password_token_expiration);
 
                 connection.Open();
@@ -374,6 +428,39 @@ namespace LoginProject.Repositories
                 token.ParameterName = "p_reset_password_token";
                 token.Value = user.ResetPasswordToken;
                 command.Parameters.Add(token);
+
+                connection.Open();
+
+                command.ExecuteNonQuery();
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                return false;
+            }
+
+        }
+
+        public bool ResetPassword(string token, string newPassword)
+        {
+            try
+            {
+
+                using var connection = _dbHelper.CreateConnection();
+                using var command = connection.CreateCommand();
+                command.CommandText = "ResetPassword";
+                command.CommandType = CommandType.StoredProcedure;
+
+                var resetPassToken = command.CreateParameter();
+                resetPassToken.ParameterName = "p_reset_password_token";
+                resetPassToken.Value = token;
+                command.Parameters.Add(resetPassToken);
+
+                var password = command.CreateParameter();
+                password.ParameterName = "p_new_password";
+                password.Value = newPassword;
+                command.Parameters.Add(password);
 
                 connection.Open();
 
