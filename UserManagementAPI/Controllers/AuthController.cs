@@ -97,8 +97,8 @@ public class AuthController : ControllerBase
         var isValidOtp = await _userStore.ValidateOtpAsync(user.Id, request.Otp);
         if (!isValidOtp)
             return BadRequest("Invalid or expired OTP.");
-
-        await _userStore.UpdatePasswordAsync(user.Id, request.NewPassword);
+        string pw = BCrypt.Net.BCrypt.HashPassword(request.NewPassword);
+        await _userStore.UpdatePasswordAsync(user.Id, pw);
         return Ok("Password has been updated.");
     }
 
