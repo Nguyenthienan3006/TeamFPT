@@ -5,6 +5,10 @@ using TeamFPT.Models.API;
 using Microsoft.Extensions.Configuration;
 using MySql.Data.MySqlClient;
 using System.Data;
+using System.Text;
+using System.Security.Cryptography;
+using Org.BouncyCastle.Crypto.Generators;
+using BCrypt.Net;
 
 namespace TeamFPT.Services
 {
@@ -18,35 +22,42 @@ namespace TeamFPT.Services
 		public User Authenticate(LoginRequestModel userLogin)
 		{
 			User currentUser = null;
-
-			using (var connection = new MySqlConnection(_connectionString))
+			string hashedPassword = GetHashedPassword(userLogin.UserName);
+			if (BCrypt.Net.BCrypt.Verify(userLogin.PassWord, hashedPassword))
 			{
-				connection.Open();
-				using (var command = new MySqlCommand("GetUser", connection))
+				using (var connection = new MySqlConnection(_connectionString))
 				{
-					command.CommandType = CommandType.StoredProcedure;
-					command.Parameters.AddWithValue("inputname", userLogin.UserName);
-					command.Parameters.AddWithValue("inputpass", userLogin.PassWord);
-
-					using (var reader = command.ExecuteReader())
+					connection.Open();
+					using (var command = new MySqlCommand("Login", connection))
 					{
-						if (reader.Read())
+						command.CommandType = CommandType.StoredProcedure;
+						command.Parameters.AddWithValue("inputname", userLogin.UserName);
+						command.Parameters.AddWithValue("inputpass", hashedPassword);
+
+						using (var reader = command.ExecuteReader())
 						{
-							currentUser = new User
+							if (reader.Read())
 							{
-								Id = reader.GetInt32("id"),
-								Username = reader.GetString("name"),
-								Email = reader.GetString("email"),
-								Role = reader.GetString("role"),
-								IsValid = reader.GetBoolean("isvalid")
-							};
+								currentUser = new User
+								{
+									Id = reader.GetInt32("id"),
+									Username = reader.GetString("name"),
+									Email = reader.GetString("email"),
+									Address = reader.GetString("address"),
+									Phone = reader.GetString("phone"),
+									Role = reader.GetString("role"),
+									IsValid = reader.GetBoolean("isvalid")
+								};
+
+							}
 						}
 					}
 				}
 			}
-
 			return currentUser;
 		}
+
+
 		public bool IsEmailExisted(ResetPassRequestModel model)
 		{
 			bool userExists = false;
@@ -54,7 +65,7 @@ namespace TeamFPT.Services
 			using (var connection = new MySqlConnection(_connectionString))
 			{
 				connection.Open();
-				using (var command = new MySqlCommand("GetEmail", connection))
+				using (var command = new MySqlCommand("CheckEmailofResetRequest", connection))
 				{
 					command.CommandType = CommandType.StoredProcedure;
 					command.Parameters.AddWithValue("inputname", model.Username);
@@ -105,27 +116,110 @@ namespace TeamFPT.Services
 			return users;
 		}
 
-
-		public void RegisterUser(string name, string pass, string email, string otp)
+		public List<string> GetAllUserNames()
 		{
+			var users = new List<string>();
+
+			using (var connection = new MySqlConnection(_connectionString))
+			{
+				connection.Open();
+				using (var command = new MySqlCommand("GetUserNames", connection))
+				{
+					command.CommandType = CommandType.StoredProcedure;
+
+					using (var reader = command.ExecuteReader())
+					{
+						while (reader.Read())
+						{
+							string username = reader.GetString("name");
+							users.Add(username);
+						}
+					}
+				}
+			}
+
+			return users;
+		}
+
+		public List<string> CHeckEmail()
+		{
+			var strings = new List<string>();
+
+			using (var connection = new MySqlConnection(_connectionString))
+			{
+				connection.Open();
+				using (var command = new MySqlCommand("GetEmails", connection))
+				{
+					command.CommandType = CommandType.StoredProcedure;
+
+					using (var reader = command.ExecuteReader())
+					{
+						while (reader.Read())
+						{
+							string email = reader.GetString("email");
+							strings.Add(email);
+						}
+					}
+				}
+			}
+
+			return strings;
+		}
+		public void RegisterUser(RegisterRequestModel model, string otp)
+		{
+			
+			string hashedPassword = HashPassword(model.Password);
+
 			using (var connection = new MySqlConnection(_connectionString))
 			{
 				connection.Open();
 
-				using (var command = new MySqlCommand("Register", connection))  
+				using (var command = new MySqlCommand("Register", connection))
 				{
 					command.CommandType = CommandType.StoredProcedure;
 
-					command.Parameters.AddWithValue("registername", name);
-					command.Parameters.AddWithValue("registerpassword", pass);
-					command.Parameters.AddWithValue("registeremail", email);
+					command.Parameters.AddWithValue("registername", model.Username);
+					command.Parameters.AddWithValue("registerpassword", hashedPassword); 
+					command.Parameters.AddWithValue("registeremail", model.Email);
+					command.Parameters.AddWithValue("registeraddress", model.Address);
+					command.Parameters.AddWithValue("registerphone", model.Phone);
 					command.Parameters.AddWithValue("OTPvalue", otp);
 					command.Parameters.AddWithValue("inputdate", DateTime.UtcNow);
 
-					var result = command.ExecuteNonQuery();  
+					var result = command.ExecuteNonQuery();
+				}
+			}
+		}
+
+		public string HashPassword(string password)
+		{
+			// Mã hóa mật khẩu sử dụng bcrypt với salt tự động
+			return BCrypt.Net.BCrypt.HashPassword(password);
+		}
+		public string GetHashedPassword(string username)
+		{
+			string hashedPassword = null;
+
+			using (var connection = new MySqlConnection(_connectionString))
+			{
+				connection.Open();
+
+				using (var command = new MySqlCommand("GetHash", connection))
+				{
+					command.CommandType = CommandType.StoredProcedure;
+					command.Parameters.AddWithValue("inputname", username);
+
+					using (var reader = command.ExecuteReader())
+					{
+						if (reader.Read())
+						{
+							hashedPassword = reader.GetString(reader.GetOrdinal("password"));
+						}
+					}
 				}
 			}
 
+			return hashedPassword; 
 		}
 
 		public void VerifyUser(string username)
@@ -145,6 +239,7 @@ namespace TeamFPT.Services
 		}
 		public void ResetPassword(string username,string password)
 		{
+			string hashedPassword = HashPassword(password);
 			using (var connection = new MySqlConnection(_connectionString))
 			{
 				connection.Open();
@@ -153,15 +248,15 @@ namespace TeamFPT.Services
 				{
 					command.CommandType = CommandType.StoredProcedure;
 					command.Parameters.AddWithValue("inputname", username);
-					command.Parameters.AddWithValue("inputpass", password);
+					command.Parameters.AddWithValue("inputpass", hashedPassword);
 					var result = command.ExecuteNonQuery();
 				}
 			}
 
 		}
-		public OTPDto GetOTP(string username)
+		public OTP GetOTP(string username)
 		{
-			OTPDto oTPDto = null; 
+			OTP oTPDto = null; 
 
 			using (var connection = new MySqlConnection(_connectionString))
 			{
@@ -178,9 +273,9 @@ namespace TeamFPT.Services
 					{
 						if (reader.Read()) 
 						{
-							oTPDto = new OTPDto
+							oTPDto = new OTP
 							{
-								OTP = reader.GetString(reader.GetOrdinal("OTP")), 
+								Value = reader.GetString(reader.GetOrdinal("OTP")), 
 								Date = reader.GetDateTime(reader.GetOrdinal("Time")), 
 							};
 						}

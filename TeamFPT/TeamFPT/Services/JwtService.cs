@@ -31,7 +31,11 @@ namespace TeamFPT.Services
 				{
 					new Claim(ClaimTypes.NameIdentifier, user.Username),
 					new Claim(ClaimTypes.Email, user.Email),
-					new Claim(ClaimTypes.Role, user.Role)
+					new Claim("address", user.Address),
+					new Claim("phone", user.Phone),
+					new Claim(ClaimTypes.Role, user.Role),
+					new Claim("isValid", user.IsValid.ToString())
+
 				}),
 				Issuer = _config["Jwt:Issuer"],
 				Expires = DateTime.Now.AddMinutes(_config.GetValue<int>("Jwt:TokenValidityMins")),

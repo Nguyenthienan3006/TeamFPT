@@ -1,8 +1,8 @@
 ﻿namespace TeamFPT.Models
 {
-	public class OTPDto
+	public class OTP
 	{
-		public string OTP { get; set; }
+		public string Value { get; set; }
 		public DateTime Date { get; set; }
 	}
 }

@@ -37,32 +37,67 @@ namespace TeamFPT.Controllers
 			}
 
 			var allUsers = _connectService.GetAllUsers(); 
-			
 			return Ok(allUsers);
 		}
+
+
+		[Authorize]
+		[HttpGet("Profile")]
+		public IActionResult Profile()
+		{
+			var isValidClaim = User.Claims.FirstOrDefault(c => c.Type == "isValid");
+			if (isValidClaim == null || !bool.TryParse(isValidClaim.Value, out bool isValid) || !isValid)
+			{
+				return Forbid("You are not Verified.");
+			}
+
+			var username = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier)?.Value;
+			var email = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Email)?.Value;
+			var address = User.Claims.FirstOrDefault(c => c.Type == "address")?.Value;
+			var phone = User.Claims.FirstOrDefault(c => c.Type == "phone")?.Value;
+
+			var userProfile = new
+			{
+				Username = username,
+				Email = email,
+				Address = address,
+				Phone = phone
+			};
+
+			return Ok(userProfile);
+		}
+
+
 
 		[AllowAnonymous]
 		[HttpPost("Register")]
 		public IActionResult Register([FromBody] RegisterRequestModel requestModel)
 		{
-			    string otp = _emailService.SendOtpEmail(requestModel.Email);
-				_connectService.RegisterUser(requestModel.Username,requestModel.Password,requestModel.Email,otp);
-				return Ok("sucess");
+			List<string> users = _connectService.GetAllUserNames();
+			List<string> emails = _connectService.CHeckEmail();
+				
+			if (users.Contains(requestModel.Username) || emails.Contains(requestModel.Email))
+			{
+				return BadRequest("username or email existed");
+			}
+
+			string otp = _emailService.SendOtpEmail(requestModel.Email);
+			_connectService.RegisterUser(requestModel,otp);
+			return Ok("sucess");
 		}
 
 		[AllowAnonymous]
 		[HttpPost("VerifyOtp")]
 		public IActionResult VerifyOtp([FromBody] VerifyOtpRequestModel verifyModel)
 		{
-			OTPDto oTPDto = _connectService.GetOTP(verifyModel.Email);
+			OTP oTPDto = _connectService.GetOTP(verifyModel.Email);
 				
-
-			if (oTPDto.OTP != verifyModel.Otp|| DateTime.UtcNow > oTPDto.Date.AddMinutes(15))
-				{
+			if (oTPDto.Value != verifyModel.Otp|| DateTime.UtcNow > oTPDto.Date.AddMinutes(15))
+			{
 					return BadRequest("Invalid OTP.");
-				}
-			_connectService.VerifyUser(verifyModel.Email);
+			}
 
+			_connectService.VerifyUser(verifyModel.Email);
 			return Ok("Verify Sucess");
 			
 		}
@@ -75,6 +110,7 @@ namespace TeamFPT.Controllers
 			{
 					return BadRequest("Email Not Existed");
 			}
+
 			string otp =_emailService.SendOtpEmail(requestModel.Email);
 			_connectService.ResetPassRequest(requestModel.Email,otp);
 			return Ok("sucess");
@@ -85,19 +121,19 @@ namespace TeamFPT.Controllers
 		public IActionResult VerifyOtpResetPass([FromBody] VerifyResetPassRequestModel verifyModel)
 		{
 
-			OTPDto oTPDto = _connectService.GetOTP(verifyModel.Email);
+			OTP oTPDto = _connectService.GetOTP(verifyModel.Email);
 
 			if (verifyModel.Password != verifyModel.RepeatPassword)
 			{
 				return BadRequest("Password and ConfirmPassword are not match");
 			}
 
-			if (oTPDto.OTP != verifyModel.Otp || DateTime.UtcNow > oTPDto.Date.AddMinutes(15))
+			if (oTPDto.Value != verifyModel.Otp || DateTime.UtcNow > oTPDto.Date.AddMinutes(15))
 			{
 				return BadRequest("Invalid OTP.");
 			}
-			_connectService.ResetPassword(verifyModel.Email,verifyModel.Password);
 
+			_connectService.ResetPassword(verifyModel.Email,verifyModel.Password);
 			return Ok("Reset Sucess");
 
 		}
