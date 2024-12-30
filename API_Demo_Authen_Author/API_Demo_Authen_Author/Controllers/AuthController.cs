@@ -27,19 +27,32 @@ namespace API_Demo_Authen_Author.Controllers
         [AllowAnonymous]
         public Object Login([FromBody] LoginDto userLogin)
         {
-            var user = _userService.Authenticate(userLogin);
+            // Kiểm tra tính hợp lệ của dữ liệu đầu vào
+            if (!ModelState.IsValid) return BadRequest(new { message = "Invalid input", errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage) });
 
-            if (user != null)
+            //kiểm tra user có tồn tại không
+            var isUserExist = _userService.Authenticate(userLogin);
+            if (isUserExist == null) return NotFound(new { message = "User not found" });
+
+            //Mỗi lần user login thì lại cập nhật token vào DB 1 lần
+            try
             {
-                var token = _tokenService.GenerateToken(user);
+                var token = _tokenService.GenerateToken(isUserExist);
+
+                // Cập nhật token vào DB
+                _tokenService.UpdateToken(isUserExist.Id, token, "Login", DateTime.Now.AddMinutes(30), false);
+
                 return Ok(new
                 {
-                    UserName = user.Username,
+                    UserName = isUserExist.Username,
                     accessToken = token
                 });
             }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "An error occurred while processing your request", error = ex.Message });
+            }
 
-            return NotFound();
         }
 
 
@@ -47,37 +60,40 @@ namespace API_Demo_Authen_Author.Controllers
         [AllowAnonymous]
         public async Task<IActionResult> RegisterAsync([FromBody] RegisterDto userRegister)
         {
-            var token = Guid.NewGuid().ToString(); // Mã xác thực email
-            //gửi mã về email
-            var verificationLink = $"Your token = {token}";
+            if (!ModelState.IsValid) return BadRequest(new { message = "Invalid input", errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage) });
+
+            // Mã xác thực email
+            var token = Guid.NewGuid().ToString(); 
+            DateTime tokenExpiry = DateTime.Now.AddMinutes(30);
+            var verificationLink = $"Your token is: {token}\nPlease note that your token will expire in 30 minutes at {tokenExpiry.ToString("HH:mm")}.";
+
+            // Kiểm tra email đã tồn tại trong DB
+            var existingUser = _userService.GetUserByEmail(userRegister.Email);
+            if (existingUser != null) return BadRequest(new { message = "User already exists" });
+
+            //đăng ký user
+            bool result = _userService.RegisterUser(token, userRegister);
+
+            if (result == null) return BadRequest("Registration failed.");
 
             bool isEmailSent = await _emailService.SendEmailAsync(userRegister.Email, "Email Verification", verificationLink);
 
-            if (isEmailSent)
-            {
-                bool result = await _userService.RegisterUserAsync(userRegister, token);
-                if (result)
-                {
-                    //nếu gửi mail thành công thì thêm người dùng vào DB
-                    return Ok("Registration successful. Please verify your email.");
-                }
-                else
-                {
-                    return StatusCode(500, "Something went wrong");
-                }
+            if (isEmailSent) return Ok("Registration successful. Please verify your email.");
+            else return StatusCode(500, "Something went wrong");
 
-            }
-
-
-            return BadRequest("Registration failed.");
         }
-
+        //Nếu token hết hạn thì làm sao xác thực lại
 
         [HttpPost("verifyEmail")]
         [AllowAnonymous]
-        public async Task<IActionResult> VerifyEmail([FromBody] VerifyEmailRequest request)
+        public IActionResult VerifyEmail([FromBody] VerifyEmailRequest request)
         {
-            UserDto userToVerify = await _userService.GetUserByEmailAsync(request.email);
+
+            //Thiếu validate check null email, check token hết hạn chưa
+
+
+            //bỏ bước này
+            UserDto userToVerify = _userService.GetUserByEmail(request.email);
 
             if (userToVerify != null)
             {
@@ -97,14 +113,14 @@ namespace API_Demo_Authen_Author.Controllers
         {
 
             //kiểm tra user có tồn tại không
-            UserDto userToChangePass = await _userService.GetUserByEmailAsync(request.Email);
+            UserDto userToChangePass = _userService.GetUserByEmail(request.Email);
 
             if (userToChangePass != null)
             {
                 //tạo mật khẩu mới
                 var newPass = _userService.GenerateRandomPassword(10);
 
-                //gửi mã về email
+                //gửi mk mới về email
                 var body = $"Your new password = {newPass}";
 
                 bool isEmailSent = await _emailService.SendEmailAsync(userToChangePass.Email, "Email Verification", body);

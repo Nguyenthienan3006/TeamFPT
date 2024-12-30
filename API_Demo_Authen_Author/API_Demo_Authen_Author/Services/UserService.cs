@@ -1,5 +1,6 @@
 ﻿using API_Demo_Authen_Author.Dto;
 using API_Demo_Authen_Author.Models;
+using MessagePack;
 using Microsoft.Extensions.Configuration;
 using MySqlConnector;
 using System.Data;
@@ -9,16 +10,19 @@ namespace API_Demo_Authen_Author.Services
     public class UserService : IUserService
     {
         private readonly IConfiguration _config;
+        private readonly IDataService _dataService;
+        private readonly ITokenService _tokenService;
 
-        public UserService(IConfiguration config)
+        public UserService(IConfiguration config, IDataService dataService, ITokenService tokenService)
         {
             _config = config;
+            _dataService = dataService;
+            _tokenService = tokenService;
         }
 
         public User Authenticate(LoginDto userLogin)
         {
-            using var connection = new MySqlConnection(_config.GetConnectionString("DefaultConnection"));
-            connection.Open();
+            using var connection = _dataService.GetConnection();
 
             using var command = new MySqlCommand("sp_Login", connection)
             {
@@ -45,12 +49,10 @@ namespace API_Demo_Authen_Author.Services
 
         public async Task<List<UserDto>> FetchUsersAsync()
         {
+            using var connection = _dataService.GetConnection();
+
             var users = new List<UserDto>();
-            var connectionString = _config.GetConnectionString("DefaultConnection");
-
-            using var connection = new MySqlConnection(connectionString);
-            await connection.OpenAsync();
-
+            
             using var command = new MySqlCommand("sp_GetAllUsers", connection)
             {
                 CommandType = System.Data.CommandType.StoredProcedure
@@ -72,13 +74,11 @@ namespace API_Demo_Authen_Author.Services
             return users;
         }
 
-        public async Task<bool> RegisterUserAsync(RegisterDto userRegister, string token)
+        public bool RegisterUser(string token, RegisterDto userRegister)
         {
-            var connectionString = _config.GetConnectionString("DefaultConnection");
+            using var connection = _dataService.GetConnection();
 
-            using var connection = new MySqlConnection(connectionString);
-            await connection.OpenAsync();
-
+            //Cập nhật user vào DB
             using var command = new MySqlCommand("sp_RegisterUser", connection)
             {
                 CommandType = CommandType.StoredProcedure
@@ -87,18 +87,22 @@ namespace API_Demo_Authen_Author.Services
             command.Parameters.AddWithValue("p_username", userRegister.UserName);
             command.Parameters.AddWithValue("p_password", userRegister.PassWord);
             command.Parameters.AddWithValue("p_email", userRegister.Email);
-            command.Parameters.AddWithValue("p_token", token);
 
-            var result = await command.ExecuteNonQueryAsync();
-            return result > 0;
+            var result1 = command.ExecuteNonQuery();
+
+            //Lấy IdUser
+            var user = GetUserByEmail(userRegister.Email);
+            if (user == null) return false;
+
+            // Cập nhật token vào DB
+            _tokenService.UpdateToken(user.Id, token, "EmailToken", DateTime.Now.AddMinutes(30), false);
+
+            return result1 > 0 ? true : false;
         }
 
-        public async Task<UserDto?> GetUserByEmailAsync(string email)
+        public UserDto GetUserByEmail(string email)
         {
-            var connectionString = _config.GetConnectionString("DefaultConnection");
-
-            using var connection = new MySqlConnection(connectionString);
-            await connection.OpenAsync();
+            using var connection = _dataService.GetConnection();
 
             using var command = new MySqlCommand("sp_GetUserByEmail", connection)
             {
@@ -107,8 +111,8 @@ namespace API_Demo_Authen_Author.Services
 
             command.Parameters.AddWithValue("p_email", email);
 
-            using var reader = await command.ExecuteReaderAsync();
-            if (await reader.ReadAsync())
+            using var reader = command.ExecuteReader();
+            if (reader.Read())
             {
                 return new UserDto
                 {
@@ -124,10 +128,7 @@ namespace API_Demo_Authen_Author.Services
 
         public async Task<bool> VerifyEmailAsync(string token, int userId, string email)
         {
-            var connectionString = _config.GetConnectionString("DefaultConnection");
-
-            using var connection = new MySqlConnection(connectionString);
-            await connection.OpenAsync();
+            using var connection = _dataService.GetConnection();
 
             using var command = new MySqlCommand("sp_VerifyEmail", connection)
             {
@@ -145,10 +146,7 @@ namespace API_Demo_Authen_Author.Services
 
         public async Task<bool> UpdateUserPasswordAsync(int userId, string newPassword)
         {
-            var connectionString = _config.GetConnectionString("DefaultConnection");
-
-            using var connection = new MySqlConnection(connectionString);
-            await connection.OpenAsync();
+            using var connection = _dataService.GetConnection();
 
             using var command = new MySqlCommand("sp_UpdateUserPassword", connection)
             {

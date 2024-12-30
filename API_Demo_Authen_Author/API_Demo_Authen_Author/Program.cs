@@ -45,6 +45,7 @@ namespace API_Demo_Authen_Author
             builder.Services.AddScoped<IUserService, UserService>();
             builder.Services.AddScoped<ITokenService, TokenService>();
             builder.Services.AddScoped<IEmailService, EmailService>();
+            builder.Services.AddScoped<IDataService, DataService>();
 
             //========================================  Step 1  =============================================
             builder.Services.AddDbContext<DemoAPIContext>(options =>

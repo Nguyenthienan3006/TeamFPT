@@ -6,10 +6,10 @@ namespace API_Demo_Authen_Author.Services
     public interface IUserService
     {
         User Authenticate(LoginDto userLogin);
-        Task<bool> RegisterUserAsync(RegisterDto userRegister, string token);
+        bool RegisterUser(string token, RegisterDto registerDto);
         Task<List<UserDto>> FetchUsersAsync();
         Task<bool> VerifyEmailAsync(string token, int userId, string email);
-        Task<UserDto> GetUserByEmailAsync(string email);
+        UserDto GetUserByEmail(string email);
         Task<bool> UpdateUserPasswordAsync(int userId, string newPassword);
         string GenerateRandomPassword(int length);
     }
