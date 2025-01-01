@@ -47,6 +47,36 @@ namespace API_Demo_Authen_Author.Services
             return accessToken;
         }
 
+        public TokenInfoDto GetTokenInfo(int userId, string tokenType)
+        {
+            try
+            {
+                using var connection = _dataService.GetConnection();
+
+                using var command = new MySqlCommand("sp_GetToken", connection)
+                {
+                    CommandType = CommandType.StoredProcedure
+                };
+
+                command.Parameters.AddWithValue("p_UserId", userId);
+                command.Parameters.AddWithValue("p_TokenType", tokenType);
+
+                using var reader = command.ExecuteReader();
+                if (reader.Read() == false) return null;
+
+                return new TokenInfoDto
+                {
+                    token = reader.GetString("Token"),
+                    expiredDate = reader.GetDateTime("ExpirationDate")
+                };
+
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"An error occurred: {ex.Message}");
+                return null;
+            }
+        }
 
         public bool UpdateToken(int userId, string token, string tokenType, DateTime expiredDate, bool isUsed)
         {

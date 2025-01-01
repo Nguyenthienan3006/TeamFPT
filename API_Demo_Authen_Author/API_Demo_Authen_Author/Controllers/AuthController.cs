@@ -33,6 +33,7 @@ namespace API_Demo_Authen_Author.Controllers
             //kiểm tra user có tồn tại không
             var isUserExist = _userService.Authenticate(userLogin);
             if (isUserExist == null) return NotFound(new { message = "User not found" });
+            else if (isUserExist.IsEmailVerified == false) return BadRequest(new { message = "Email is not verified" });
 
             //Mỗi lần user login thì lại cập nhật token vào DB 1 lần
             try
@@ -63,7 +64,7 @@ namespace API_Demo_Authen_Author.Controllers
             if (!ModelState.IsValid) return BadRequest(new { message = "Invalid input", errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage) });
 
             // Mã xác thực email
-            var token = Guid.NewGuid().ToString(); 
+            var token = Guid.NewGuid().ToString();
             DateTime tokenExpiry = DateTime.Now.AddMinutes(30);
             var verificationLink = $"Your token is: {token}\nPlease note that your token will expire in 30 minutes at {tokenExpiry.ToString("HH:mm")}.";
 
@@ -76,36 +77,40 @@ namespace API_Demo_Authen_Author.Controllers
 
             if (result == null) return BadRequest("Registration failed.");
 
+            //gửi email
             bool isEmailSent = await _emailService.SendEmailAsync(userRegister.Email, "Email Verification", verificationLink);
 
             if (isEmailSent) return Ok("Registration successful. Please verify your email.");
             else return StatusCode(500, "Something went wrong");
 
         }
-        //Nếu token hết hạn thì làm sao xác thực lại
 
         [HttpPost("verifyEmail")]
         [AllowAnonymous]
-        public IActionResult VerifyEmail([FromBody] VerifyEmailRequest request)
+        public async Task<IActionResult> VerifyEmailAsync([FromBody] VerifyEmailRequest request)
         {
+            //validate input
+            if (!ModelState.IsValid) return BadRequest(new { message = "Invalid input", errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage) });
 
-            //Thiếu validate check null email, check token hết hạn chưa
+            //check email có tồn tại không
+            var user = _userService.GetUserByEmail(request.email);
+            if (user == null) return BadRequest(new { message = "Invalid credentials" });
 
-
-            //bỏ bước này
-            UserDto userToVerify = _userService.GetUserByEmail(request.email);
-
-            if (userToVerify != null)
+            //Check token hết hạn chưa
+            var isTokenValid = _tokenService.GetTokenInfo(user.Id, "EmailToken");
+            if (isTokenValid == null || isTokenValid.expiredDate < DateTime.UtcNow)
             {
-                var result = _userService.VerifyEmailAsync(request.token, userToVerify.Id, request.email);
+                if (await _emailService.SendNewTokenAsync(request.email, user.Id))
+                    return BadRequest(new { message = "Token expired. A new token has been sent to your email." });
 
-                if (result != null)
-                {
-                    return Ok("Verify successfull");
-                }
+                return StatusCode(500, new { message = "Failed to send new token" });
             }
 
-            return BadRequest("Registration failed.");
+            // Verify token
+            if (await _userService.VerifyEmailAsync(request.token, user.Id, request.email))
+                return Ok(new { message = "Email verification successful" });
+
+            return BadRequest(new { message = "Email verification failed" });
         }
 
         [HttpPost("forgotPassword")]
@@ -115,35 +120,26 @@ namespace API_Demo_Authen_Author.Controllers
             //kiểm tra user có tồn tại không
             UserDto userToChangePass = _userService.GetUserByEmail(request.Email);
 
-            if (userToChangePass != null)
-            {
-                //tạo mật khẩu mới
-                var newPass = _userService.GenerateRandomPassword(10);
+            if (userToChangePass == null) return NotFound();
 
-                //gửi mk mới về email
-                var body = $"Your new password = {newPass}";
+            //tạo mật khẩu mới
+            var newPass = _userService.GenerateRandomPassword(10);
 
-                bool isEmailSent = await _emailService.SendEmailAsync(userToChangePass.Email, "Email Verification", body);
+            //gửi mk mới về email
+            var body = $"Your new password = {newPass}";
 
-                if (isEmailSent)
-                {
-                    //cập nhật mật khẩu mới
-                    var result = _userService.UpdateUserPasswordAsync(userToChangePass.Id, newPass);
+            bool isEmailSent = await _emailService.SendEmailAsync(userToChangePass.Email, "Email Verification", body);
 
-                    if (result != null)
-                    {
-                        //nếu gửi mail thành công thì thêm người dùng vào DB
-                        return Ok("Sent successfull, please check your email");
-                    }
-                    return StatusCode(500, "Something went wrong!");
+            if (isEmailSent == null) return StatusCode(500, "Something went wrong");
 
-                }
+            //cập nhật mật khẩu mới
+            var result = _userService.UpdateUserPasswordAsync(userToChangePass.Id, newPass);
 
-                return StatusCode(500, "Something went wrong");
+            if (result != null) return StatusCode(500, "Something went wrong!");
 
+            //nếu gửi mail thành công thì thêm người dùng vào DB
+            return Ok("Sent successfull, please check your email");
 
-            }
-            return NotFound();
         }
 
         [HttpPost("changePassword")]

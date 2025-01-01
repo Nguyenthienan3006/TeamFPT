@@ -11,5 +11,6 @@ namespace API_Demo_Authen_Author.Models
         public string? FullName { get; set; }
         public string? Email { get; set; }
         public string? Role { get; set; }
+        public bool IsEmailVerified { get; set; }
     }
 }

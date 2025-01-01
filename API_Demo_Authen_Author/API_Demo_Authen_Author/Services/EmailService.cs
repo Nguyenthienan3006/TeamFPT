@@ -7,10 +7,12 @@ namespace API_Demo_Authen_Author.Services
     public class EmailService : IEmailService
     {
         private readonly IConfiguration _configuration;
+        private readonly ITokenService _tokenService;
 
-        public EmailService(IConfiguration configuration)
+        public EmailService(IConfiguration configuration, ITokenService tokenService)
         {
             _configuration = configuration;
+            _tokenService = tokenService;
         }
 
         public async Task<bool> SendEmailAsync(string to, string subject, string body)
@@ -50,5 +52,19 @@ namespace API_Demo_Authen_Author.Services
             }
         }
 
+        public async Task<bool> SendNewTokenAsync(string email, int userId)
+        {
+            var token = Guid.NewGuid().ToString();
+            var tokenExpiry = DateTime.UtcNow.AddMinutes(30);
+
+            if (await SendEmailAsync(email, "Email Verification", $"Your token is: {token}\nIt will expire at {tokenExpiry:HH:mm} UTC."))
+            {
+                _tokenService.UpdateToken(userId, token, "EmailToken", tokenExpiry, false);
+
+                return true;
+            }
+
+            return false;
+        }
     }
 }
