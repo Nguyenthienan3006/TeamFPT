@@ -105,9 +105,7 @@ public class UserStore
         using var connection = new MySqlConnection(_connectionString);
         connection.Open();
         //sp_ValidateOTP
-        using var command = new MySqlCommand(
-            "sp_ValidateOTP", connection
-        )
+        using var command = new MySqlCommand("sp_ValidateOTP", connection )
         {
             CommandType = System.Data.CommandType.StoredProcedure
         };
@@ -125,6 +123,16 @@ public class UserStore
         return false;
     }
 
+    public void SaveToken(int userId, string token)
+    {
+        using var connection = new MySqlConnection(_connectionString);
+        connection.Open();
+
+        using var command = new MySqlCommand("sp_SaveToken", connection) { CommandType = System.Data.CommandType.StoredProcedure };
+        command.Parameters.AddWithValue("p_user_id", userId);
+        command.Parameters.AddWithValue("p_otp", token);
+        command.ExecuteNonQuery();
+    }
     private void MarkOtpAsUsed(int tokenId)
     {
         using var connection = new MySqlConnection(_connectionString);
@@ -135,7 +143,7 @@ public class UserStore
         command.ExecuteNonQuery();
     }
 
-    public void UpdatePasswordAsync(int userId, string newPassword)
+    public void UpdatePassword(int userId, string newPassword)
     {
         using var connection = new MySqlConnection(_connectionString);
         connection.Open();
@@ -143,7 +151,7 @@ public class UserStore
         using var command = new MySqlCommand("sp_UpdatePassword", connection)
         {
             CommandType = System.Data.CommandType.StoredProcedure
-        }; ;
+        }; 
         command.Parameters.AddWithValue("p_user_id", userId);
         command.Parameters.AddWithValue("p_NewPassword", newPassword);
 
