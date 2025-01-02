@@ -26,9 +26,9 @@ public class AuthController : ControllerBase
     }
 
     [HttpPost("register")]
-    public async Task<IActionResult> Register([FromBody] RegisterRequest request)
+    public IActionResult Register([FromBody] RegisterRequest request)
     {
-        if (await _userStore.UserExistsAsync(request.Username))
+        if (_userStore.UserExists(request.Username))
         {
             return BadRequest("Username already exists.");
         }
@@ -41,17 +41,17 @@ public class AuthController : ControllerBase
             Role = "user"
         };
 
-        await _userStore.AddUserAsync(user);
+        _userStore.AddUser(user);
 
         return Ok("User registered successfully.");
     }
 
     [HttpPost("login")]
-    public async Task<IActionResult> Login([FromBody] LoginRequest request)
+    public IActionResult Login([FromBody] LoginRequest request)
     {
         try
         {
-            var existingUser = await _userStore.GetUserByUsernameAsync(request.Username);
+            var existingUser = _userStore.GetUserByUsername(request.Username);
             if (existingUser == null)
             {
                 return Unauthorized("Invalid username or password.");
@@ -74,31 +74,31 @@ public class AuthController : ControllerBase
     }
 
     [HttpPost("forgot-password")]
-    public async Task<IActionResult> ForgotPassword([FromBody] string username)
+    public IActionResult ForgotPassword([FromBody] string username)
     {
-        var user = await _userStore.GetUserByUsernameAsync(username);
+        var user = _userStore.GetUserByUsername(username);
         if (user == null)
             return NotFound("User not found.");
 
-        var otp = await _userStore.GenerateOtpAsync(user.Id);
-        await _emailService.SendEmailAsync(user.Email, "Reset Password OTP", $"Your OTP is: {otp}");
+        var otp = _userStore.GenerateOtp(user.Id);
+        _emailService.SendEmail(user.Email, "Reset Password OTP", $"Your OTP is: {otp}");
 
         return Ok("OTP has been sent to your email.");
         
     }
 
     [HttpPost("reset-password")]
-    public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordRequest request)
+    public IActionResult ResetPassword([FromBody] ResetPasswordRequest request)
     {
-        var user = await _userStore.GetUserByUsernameAsync(request.Username);
+        var user = _userStore.GetUserByUsername(request.Username);
         if (user == null)
             return NotFound("User not found.");
 
-        var isValidOtp = await _userStore.ValidateOtpAsync(user.Id, request.Otp);
+        var isValidOtp = _userStore.ValidateOtp(user.Id, request.Otp);
         if (!isValidOtp)
             return BadRequest("Invalid or expired OTP.");
         string pw = BCrypt.Net.BCrypt.HashPassword(request.NewPassword);
-        await _userStore.UpdatePasswordAsync(user.Id, pw);
+        _userStore.UpdatePassword(user.Id, pw);
         return Ok("Password has been updated.");
     }
 

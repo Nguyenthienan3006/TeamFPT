@@ -16,7 +16,7 @@ public class EmailService
         _smtpPassword = smtpPassword;
     }
 
-    public async Task SendEmailAsync(string toEmail, string subject, string message)
+    public void SendEmail(string toEmail, string subject, string message)
     {
         var email = new MimeMessage();
         email.From.Add(new MailboxAddress("Admin", _smtpUser));
@@ -28,9 +28,9 @@ public class EmailService
         };
 
         using var smtp = new SmtpClient();
-        await smtp.ConnectAsync(_smtpServer, _smtpPort, MailKit.Security.SecureSocketOptions.StartTls);
-        await smtp.AuthenticateAsync(_smtpUser, _smtpPassword);
-        await smtp.SendAsync(email);
-        await smtp.DisconnectAsync(true);
+        smtp.Connect(_smtpServer, _smtpPort, MailKit.Security.SecureSocketOptions.StartTls);
+        smtp.Authenticate(_smtpUser, _smtpPassword);
+        smtp.Send(email);
+        smtp.Disconnect(true);
     }
 }
