@@ -22,47 +22,44 @@ namespace LoginProject.Controllers
             _usersService = usersService;
         }
 
+        //[HttpGet("get-all")]
+        //public IActionResult GetAllUsers()
+        //{
+        //    try
+        //    {
+        //        var users = _usersService.GetAllUsers();
 
+        //        if (users == null)
+        //        {
+        //            return NotFound("No users found");
+        //        }
+        //        return Ok(users);
+        //    }
+        //    catch (Exception ex)
+        //    {
+        //        return StatusCode(500, $"Internal server error: {ex.Message}");
+        //    }
+        //}
 
+        //[HttpGet("{username}")]
+        //[Authorize]
+        //public IActionResult GetUserByUsername(string username)
+        //{
+        //    try
+        //    {
+        //        var user = _usersService.GetUserByUsername(username);
 
-        [HttpGet("get-all")]
-        public IActionResult GetAllUsers()
-        {
-            try
-            {
-                var users = _usersService.GetAllUsers();
+        //        if (user == null)
+        //        {
+        //            return NotFound();
+        //        }
+        //        return Ok(user);
+        //    }
+        //    catch (Exception ex)
+        //    {
+        //        return StatusCode(500, $"Internal server error: {ex.Message}");
+        //    }
 
-                if (users == null)
-                {
-                    return NotFound("No users found");
-                }
-                return Ok(users);
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, $"Internal server error: {ex.Message}");
-            }
-        }
-
-        [HttpGet("{username}")]
-        [Authorize]
-        public IActionResult GetUserByUsername(string username)
-        {
-            try
-            {
-                var user = _usersService.GetUserByUsername(username);
-
-                if (user == null)
-                {
-                    return NotFound();
-                }
-                return Ok(user);
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, $"Internal server error: {ex.Message}");
-            }
-
-        }
+        //}
     }
 }

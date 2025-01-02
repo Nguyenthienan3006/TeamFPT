@@ -1,4 +1,5 @@
-﻿using LoginProject.Data;
+﻿using BCrypt.Net;
+using LoginProject.Data;
 using LoginProject.DTO;
 using LoginProject.Models;
 using LoginProject.Repositories;
@@ -34,208 +35,87 @@ namespace LoginProject.Controllers
         [HttpPost("register")]
         public async Task<IActionResult> Register([FromBody] DTO.RegisterRequest request)
         {
-            try
+            if (!ModelState.IsValid) return BadRequest(ModelState);
+            if (_usersService.GetUserByUsernameAndEmail(request.Username, request.Email) != null) return BadRequest("Username or Email is already existed!");
+
+            var token = Guid.NewGuid().ToString();
+            var newUser = new User
             {
-                if (IsUsernameOrEmailExist(request.Username, request.Email))
-                {
-                    return BadRequest("Username or Email is already existed!");
-                }
+                Username = request.Username,
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password),
+                Email = request.Email,
+            };
 
-                var token = Guid.NewGuid().ToString();
+            if (!_usersService.Register(newUser, token)) return StatusCode(500, "Error occurred during registration");
 
-                var newUser = new User
-                {
-                    Username = request.Username,
-                    Password = request.Password,
-                    Email = request.Email,
-                    VerificationToken = token,
-                    VerificationTokenExpiration = DateTime.UtcNow.AddHours(1)
-                };
-                if (_usersService.Register(newUser))
-                {
+            await _emailService.SendEmailAsync(newUser.Email, "Verify Your Email",
+                   $"Token: {token}");
 
-                    await _emailService.SendEmailAsync(newUser.Email, "Verify Your Email",
-                        $"Token: {token}");
-
-                    return Ok("User registered. Please verify your email.");
-                }
-
-                return StatusCode(500, "Error occurred during registration");
-
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, $"Internal server error: {ex.Message}");
-            }
-
-
-        }
-        private bool IsUsernameOrEmailExist(string username, string email)
-        {
-            return _usersService.GetUserByUsername(username) != null || _usersService.GetUserByEmail(email) != null;
+            return Ok("User registered. Please verify your email.");
         }
 
-        [HttpPost("verify")]
+        [HttpGet("verify")]
         public IActionResult VerifyEmail([FromQuery] string token)
         {
-            try
-            {
-                var user = _usersService.GetUserByVerificationToken(token);
+            if (!_usersService.VerifyEmail(token)) return BadRequest("Invalid or expired token.");
 
-                if (user == null || user.VerificationTokenExpiration < DateTime.UtcNow)
-                {
-                    return BadRequest("Invalid or expired token.");
-                }
-
-                if (_usersService.VerifyEmail(user.Id))
-                {
-                    return Ok("Email verified successfully.");
-                }
-                return StatusCode(500, "Error occurred during registration");
-
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, $"Internal server error: {ex.Message}");
-            }
-
+            return Ok("Email verified successfully.");
         }
 
         [HttpPost("resend-verification")]
         public async Task<IActionResult> ResendVerificationEmail([FromBody] ResendVerificationRequest request)
         {
-            try
-            {
-                var user = _usersService.GetUserByEmail(request.Email);
+            if (!ModelState.IsValid) return BadRequest(ModelState);
+            var token = Guid.NewGuid().ToString();
+            if (!_usersService.InsertVerificationToken(request.Email, token)) return NotFound("User not found or already verified.");
 
-                if (user == null || user.IsVerified)
-                {
-                    return BadRequest("User not found or already verified.");
-                }
-
-                var token = Guid.NewGuid().ToString();
-
-
-                user.VerificationToken = token;
-                user.VerificationTokenExpiration = DateTime.UtcNow.AddHours(1);
-
-                if (_usersService.UpdateVerificationToken(user))
-                {
-
-                    await _emailService.SendEmailAsync(request.Email, "Verify Your Email",
-                        $"Token: {token}");
-
-                    return Ok("Verification email resent.");
-                }
-
-                return StatusCode(500, "Error occurred during creating verification token.");
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, $"Internal server error: {ex.Message}");
-            }
+            await _emailService.SendEmailAsync(request.Email, "Verify Your Email", $"Token: {token}");
+            return Ok("Verification email resent.");
         }
-
 
         [HttpPost("forgot-password")]
         public async Task<IActionResult> ForgotPassword([FromBody] ForgotPassRequest request)
         {
-            try
-            {
-                if (!ModelState.IsValid)
-                {
-                    return BadRequest(ModelState);
-                }
+            if (!ModelState.IsValid) return BadRequest(ModelState);
+            var resetToken = Guid.NewGuid().ToString();
+            if (!_usersService.InsertResetPasswordToken(request.Email, resetToken)) return NotFound("Email not found.");
 
-                var user = _usersService.GetUserByEmail(request.Email);
-                if (user == null)
-                {
-                    return NotFound("User not found.");
-                }
-
-                var resetToken = Guid.NewGuid().ToString();
-                var tokenExpiration = DateTime.UtcNow.AddHours(1);
-
-                user.ResetPasswordToken = resetToken;
-                user.ResetPasswordTokenExpiration = tokenExpiration;
-
-                if(_usersService.UpdateResetPasswordToken(user))
-                {
-                    await _emailService.SendEmailAsync(request.Email, "Password Reset Request",
-                        $"Token: {resetToken}");
-
-                    return Ok("Password reset email sent.");
-                }
-
-                return StatusCode(500, "Error occurred during creating reset password token.");
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, $"Internal server error: {ex.Message}");
-            }
+            await _emailService.SendEmailAsync(request.Email, "Password Reset Request", $"Token: {resetToken}");
+            return Ok("Password reset email sent.");
         }
 
         [HttpPost("reset-password")]
         public IActionResult ResetPassword([FromBody] DTO.ResetPasswordRequest request)
         {
-            try
-            {
-                if (!ModelState.IsValid)
-                {
-                    return BadRequest(ModelState);
-                }
+            if (!ModelState.IsValid) return BadRequest(ModelState);
+            if (!_usersService.ResetPassword(request.Token, BCrypt.Net.BCrypt.HashPassword(request.NewPassword))) return BadRequest("Invalid or expired token.");
 
-                var user = _usersService.GetUserByResetPasswordToken(request.Token);
-
-                if (user == null || user.ResetPasswordTokenExpiration < DateTime.UtcNow)
-                {
-                    return BadRequest("Invalid or expired token.");
-                }
-
-                if (_usersService.ResetPassword(request.Token,request.NewPassword))
-                {
-                    return Ok("Password has been successfully reset.");
-                }
-                return StatusCode(500, "Error occurred during registration");
-
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, $"Internal server error: {ex.Message}");
-            }
-
-
-            
+            return Ok("Password has been successfully reset.");
         }
-
-
 
         [HttpPost("login")]
         public IActionResult Login([FromBody] DTO.LoginRequest request)
         {
-            try
-            {
-                if (!ModelState.IsValid)
-                {
-                    return BadRequest(ModelState);
-                }
+            if (!ModelState.IsValid) return BadRequest(ModelState);
 
-                User user = _usersService.AuthenticateUser(request.Username, request.Password);
-                if (user == null) return Unauthorized("Invalid credentials.");
-                if (!user.IsVerified) return Unauthorized("Account is not verified.");
+            var user = AuthenticateUser(request.Username, request.Password);
 
+            if (user == null) return Unauthorized("Invalid credentials.");
+            if (!user.IsEmailVerified) return Unauthorized("Account is not verified.");
 
-                var token = GenerateJwtToken(user);
-                return Ok(new { Token = token });
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, $"Internal server error: {ex.Message}");
-            }
-
+            var token = GenerateJwtToken(user);
+            return Ok(new { Token = token });
         }
 
+        private User? AuthenticateUser(string username, string password)
+        {
+            var user = _usersService.GetUserByUsername(username);
 
+            if (user == null) return null;
+            if (!BCrypt.Net.BCrypt.Verify(password, user.PasswordHash)) return null;
+
+            return user;
+        }
 
         private string GenerateJwtToken(User user)
         {
@@ -245,7 +125,7 @@ namespace LoginProject.Controllers
             {
                 Subject = new ClaimsIdentity(new[]
                 {
-                new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
+                new Claim(ClaimTypes.NameIdentifier, user.UserId.ToString()),
                 new Claim(ClaimTypes.Role, user.Role)
             }),
                 Issuer = _config["Jwt:Issuer"],

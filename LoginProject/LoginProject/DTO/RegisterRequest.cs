@@ -5,6 +5,7 @@ namespace LoginProject.DTO
     public class RegisterRequest
     {
         [Required]
+        [MaxLength(50)]
         public string Username { get; set; }
 
         [Required]
@@ -12,7 +13,8 @@ namespace LoginProject.DTO
         public string Email { get; set; }
 
         [Required]
-       // [MinLength(8)]
+        [StringLength(255, MinimumLength = 8, ErrorMessage = "Password must be at least 8 characters.")]
+        [RegularExpression(@"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).{8,}$", ErrorMessage = "Password must contain at least one uppercase letter, one lowercase letter, one digit, and one special character.")]
         public string Password { get; set; }
     }
 }
