@@ -7,10 +7,12 @@ namespace API_Demo_Authen_Author.Services
     {
         User Authenticate(LoginDto userLogin);
         bool RegisterUser(string token, RegisterDto registerDto);
-        Task<List<UserDto>> FetchUsersAsync();
-        Task<bool> VerifyEmailAsync(string token, int userId, string email);
+        List<UserDto> FetchUsers();
+        bool VerifyEmail(string token, int userId, string email);
         UserDto GetUserByEmail(string email);
-        Task<bool> UpdateUserPasswordAsync(int userId, string newPassword);
+        bool UpdateUserPassword(int userId, string newPassword);
         string GenerateRandomPassword(int length);
+
+        bool HasValidPasswordFormat(string password);
     }
 }

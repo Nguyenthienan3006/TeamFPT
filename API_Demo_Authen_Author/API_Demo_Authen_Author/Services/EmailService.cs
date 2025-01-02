@@ -41,7 +41,6 @@ namespace API_Demo_Authen_Author.Services
                 message.To.Add(to);
                 await smtp.SendMailAsync(message);
 
-                // Nếu không xảy ra lỗi, trả về true
                 return true;
             }
             catch (Exception ex)
@@ -52,7 +51,7 @@ namespace API_Demo_Authen_Author.Services
             }
         }
 
-        public async Task<bool> SendNewTokenAsync(string email, int userId)
+        public async Task<bool> ReSendTokenAsync(string email, int userId)
         {
             var token = Guid.NewGuid().ToString();
             var tokenExpiry = DateTime.UtcNow.AddMinutes(30);

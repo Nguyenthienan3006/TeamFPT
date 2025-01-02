@@ -4,6 +4,7 @@ using MessagePack;
 using Microsoft.Extensions.Configuration;
 using MySqlConnector;
 using System.Data;
+using System.Text.RegularExpressions;
 
 namespace API_Demo_Authen_Author.Services
 {
@@ -40,14 +41,15 @@ namespace API_Demo_Authen_Author.Services
                     Id = reader.GetInt32("user_id"),
                     Username = reader.GetString("username"),
                     Email = reader.GetString("email"),
-                    Role = reader.GetString("role")
+                    Role = reader.GetString("role"),
+                    IsEmailVerified = reader.GetBoolean("IsEmailVerified")
                 };
             }
 
             return null;
         }
 
-        public async Task<List<UserDto>> FetchUsersAsync()
+        public List<UserDto> FetchUsers()
         {
             using var connection = _dataService.GetConnection();
 
@@ -58,8 +60,8 @@ namespace API_Demo_Authen_Author.Services
                 CommandType = System.Data.CommandType.StoredProcedure
             };
 
-            using var reader = await command.ExecuteReaderAsync();
-            while (await reader.ReadAsync())
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
             {
                 users.Add(new UserDto
                 {
@@ -126,7 +128,7 @@ namespace API_Demo_Authen_Author.Services
             return null;
         }
 
-        public async Task<bool> VerifyEmailAsync(string token, int userId, string email)
+        public bool VerifyEmail(string token, int userId, string email)
         {
             using var connection = _dataService.GetConnection();
 
@@ -140,11 +142,11 @@ namespace API_Demo_Authen_Author.Services
             command.Parameters.AddWithValue("p_userId", userId);
 
 
-            var result = await command.ExecuteNonQueryAsync();
+            var result = command.ExecuteNonQuery();
             return result > 0;
         }
 
-        public async Task<bool> UpdateUserPasswordAsync(int userId, string newPassword)
+        public bool UpdateUserPassword(int userId, string newPassword)
         {
             using var connection = _dataService.GetConnection();
 
@@ -158,7 +160,7 @@ namespace API_Demo_Authen_Author.Services
             command.Parameters.AddWithValue("p_new_password", newPassword);
 
             // Thực thi stored procedure
-            var result = await command.ExecuteNonQueryAsync();
+            var result = command.ExecuteNonQuery();
 
             // Kiểm tra kết quả và trả về true nếu thành công
             return result > 0;
@@ -168,6 +170,13 @@ namespace API_Demo_Authen_Author.Services
             const string chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()_+[]{}|;:,.<>?";
             var random = new Random();
             return new string(new char[length].Select(c => chars[random.Next(chars.Length)]).ToArray());
+        }
+
+        public bool HasValidPasswordFormat(string password)
+        {
+            // Ít nhất 1 ký tự in hoa, 1 số, và 1 ký tự đặc biệt
+            var passwordRegex = new Regex(@"^(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$");
+            return passwordRegex.IsMatch(password);
         }
     }
 }

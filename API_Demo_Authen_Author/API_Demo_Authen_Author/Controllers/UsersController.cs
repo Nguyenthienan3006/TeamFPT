@@ -24,9 +24,9 @@ namespace API_Demo_Authen_Author.Controllers
 
         [HttpGet("Admin")]
         [Authorize(Roles = "admin")]
-        public async Task<IActionResult> AdminGetUsers()
+        public IActionResult AdminGetUsers()
         {
-            var users = await _userService.FetchUsersAsync();
+            var users = _userService.FetchUsers();
             return Ok(new
             {
                 Name = User.FindFirstValue(ClaimTypes.Name),
@@ -37,16 +37,16 @@ namespace API_Demo_Authen_Author.Controllers
 
         [HttpGet("User")]
         [Authorize]
-        public async Task<IActionResult> GetUsers()
+        public IActionResult GetUsers()
         {
-            var users = await _userService.FetchUsersAsync();
+            var users = _userService.FetchUsers();
             return Ok(users);
         }
 
         [HttpGet("Public")]
-        public async Task<IActionResult> GetUsersPublic()
+        public IActionResult GetUsersPublic()
         {
-            var users = await _userService.FetchUsersAsync();
+            var users = _userService.FetchUsers();
             return Ok(users);
         }
     }
