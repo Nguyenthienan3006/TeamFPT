@@ -36,10 +36,18 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"]))
         };
     });
+builder.Services.AddDistributedRedisCache(
+    options =>
+    {
+        options.Configuration = "localhost:6379";
 
+    }
+    );
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+
+
 
 var app = builder.Build();
 
@@ -49,13 +57,6 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-builder.Services.AddDistributedRedisCache(
-    options =>
-    {
-        options.Configuration = "localhost:7127";
-
-    }
-    );
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
