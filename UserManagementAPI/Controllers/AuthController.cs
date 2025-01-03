@@ -45,8 +45,9 @@ public class AuthController : ControllerBase
         return Ok("User registered successfully.");
     }
 
+   
     [HttpPost("login")]
-    public IActionResult Login([FromBody] LoginRequest request)
+    public async Task<IActionResult> Login([FromBody] LoginRequest request, [FromServices] IDistributedCache cache)
     {
         try
         {
@@ -56,22 +57,48 @@ public class AuthController : ControllerBase
             if (!BCrypt.Net.BCrypt.Verify(request.Password, existingUser.Password)) return Unauthorized("Invalid username or password.");
 
             var token = GenerateJwtToken(existingUser);
-            //_userStore.SaveToken(existingUser.Id, token);
+
+            // Lưu token vào Redis
             var cacheKey = $"auth_token:{existingUser.Id}";
-            var cacheOption = new DistributedCacheEntryOptions
+            var cacheOptions = new DistributedCacheEntryOptions
             {
-                AbsoluteExpirationRelativeToNow = TimeSpan.FromHours(1)
+                AbsoluteExpirationRelativeToNow = TimeSpan.FromHours(1) // Token hết hạn sau 1 giờ
             };
-            _cache.SetString(cacheKey, token, cacheOption);
+            await cache.SetStringAsync(cacheKey, token, cacheOptions);
+
             return Ok(new { Token = token });
         }
         catch (Exception ex)
         {
-
             Console.WriteLine($"Error in Login: {ex.Message}");
             return StatusCode(500, "An error occurred while processing your request.");
         }
     }
+
+    [HttpGet("check-token")]
+    public IActionResult CheckToken([FromQuery] string userId, [FromServices] IDistributedCache cache)
+    {
+        try
+        {
+            var cacheKey = $"auth_token:{userId}";
+
+            // Lấy token từ Redis cache
+            var token = cache.GetString(cacheKey);
+
+            if (string.IsNullOrEmpty(token))
+            {
+                return NotFound("Token not found in Redis cache.");
+            }
+
+            return Ok(new { Token = token });
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error checking token: {ex.Message}");
+            return StatusCode(500, "An error occurred while processing your request.");
+        }
+    }
+
 
 
     private bool ValidateToken(string token, string userId, IDistributedCache cache)
@@ -79,7 +106,7 @@ public class AuthController : ControllerBase
         var cacheKey = $"auth_token:{userId}";
         var cachedToken = cache.GetString(cacheKey);
 
-        return cachedToken == token; // So sánh token từ Redis với token client gửi lên
+        return cachedToken == token; 
     }
 
     [HttpPost("forgot-password")]
