@@ -7,6 +7,7 @@ using System.Security.Claims;
 using System.Text;
 using UserManagementAPI.Models;
 using UserManagementAPI.DTOs;
+using Microsoft.Extensions.Caching.Distributed;
 
 namespace JwtAuthDemo.Controllers;
 
@@ -17,21 +18,19 @@ public class AuthController : ControllerBase
     private readonly UserStore _userStore;
     private readonly EmailService _emailService;
     private readonly IConfiguration _configuration;
-
-    public AuthController(UserStore userStore, EmailService emailService, IConfiguration configuration)
+    private readonly IDistributedCache _cache;
+    public AuthController(UserStore userStore, EmailService emailService, IConfiguration configuration, IDistributedCache cache)
     {
         _userStore = userStore;
         _emailService = emailService;
         _configuration = configuration;
+        _cache = cache;
     }
 
     [HttpPost("register")]
     public IActionResult Register([FromBody] RegisterRequest request)
     {
-        if (_userStore.UserExists(request.Username))
-        {
-            return BadRequest("Username already exists.");
-        }
+        if (_userStore.UserExists(request.Username)) return BadRequest("Username already exists.");
 
         var user = new User
         {
@@ -52,17 +51,18 @@ public class AuthController : ControllerBase
         try
         {
             var existingUser = _userStore.GetUserByUsername(request.Username);
-            if (existingUser == null)
-            {
-                return Unauthorized("Invalid username or password.");
-            }
+            if (existingUser == null) return Unauthorized("Invalid username or password.");
 
-            if (!BCrypt.Net.BCrypt.Verify(request.Password, existingUser.Password))
-            {
-                return Unauthorized("Invalid username or password.");
-            }
+            if (!BCrypt.Net.BCrypt.Verify(request.Password, existingUser.Password)) return Unauthorized("Invalid username or password.");
 
             var token = GenerateJwtToken(existingUser);
+            //_userStore.SaveToken(existingUser.Id, token);
+            var cacheKey = $"auth_token:{existingUser.Id}";
+            var cacheOption = new DistributedCacheEntryOptions
+            {
+                AbsoluteExpirationRelativeToNow = TimeSpan.FromHours(1)
+            };
+            _cache.SetString(cacheKey, token, cacheOption);
             return Ok(new { Token = token });
         }
         catch (Exception ex)
@@ -73,12 +73,20 @@ public class AuthController : ControllerBase
         }
     }
 
+
+    private bool ValidateToken(string token, string userId, IDistributedCache cache)
+    {
+        var cacheKey = $"auth_token:{userId}";
+        var cachedToken = cache.GetString(cacheKey);
+
+        return cachedToken == token; // So sánh token từ Redis với token client gửi lên
+    }
+
     [HttpPost("forgot-password")]
     public IActionResult ForgotPassword([FromBody] string username)
     {
         var user = _userStore.GetUserByUsername(username);
-        if (user == null)
-            return NotFound("User not found.");
+        if (user == null) return NotFound("User not found.");
 
         var otp = _userStore.GenerateOtp(user.Id);
         _emailService.SendEmail(user.Email, "Reset Password OTP", $"Your OTP is: {otp}");
@@ -91,13 +99,13 @@ public class AuthController : ControllerBase
     public IActionResult ResetPassword([FromBody] ResetPasswordRequest request)
     {
         var user = _userStore.GetUserByUsername(request.Username);
-        if (user == null)
-            return NotFound("User not found.");
-
+        if (user == null) return NotFound("User not found.");
+           
         var isValidOtp = _userStore.ValidateOtp(user.Id, request.Otp);
-        if (!isValidOtp)
-            return BadRequest("Invalid or expired OTP.");
+        if (!isValidOtp) return BadRequest("Invalid or expired OTP.");
+            
         string pw = BCrypt.Net.BCrypt.HashPassword(request.NewPassword);
+
         _userStore.UpdatePassword(user.Id, pw);
         return Ok("Password has been updated.");
     }
@@ -121,7 +129,8 @@ public class AuthController : ControllerBase
             claims: claims,
             expires: DateTime.Now.AddHours(1),
             signingCredentials: credentials);
-
+        
+        
         return new JwtSecurityTokenHandler().WriteToken(token);
     }
 

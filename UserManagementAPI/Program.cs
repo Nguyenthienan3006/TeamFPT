@@ -4,10 +4,14 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
+using Microsoft.Extensions.Caching.Redis;
+using StackExchange.Redis;
+using System.Configuration;
 
 var builder = WebApplication.CreateBuilder(args);
 
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+
 
 // Đăng ký UserStore
 builder.Services.AddSingleton<UserStore>();
@@ -45,6 +49,13 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
+builder.Services.AddDistributedRedisCache(
+    options =>
+    {
+        options.Configuration = "localhost:7127";
+
+    }
+    );
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();

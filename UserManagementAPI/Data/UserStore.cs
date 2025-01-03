@@ -131,6 +131,7 @@ public class UserStore
         using var command = new MySqlCommand("sp_SaveToken", connection) { CommandType = System.Data.CommandType.StoredProcedure };
         command.Parameters.AddWithValue("p_user_id", userId);
         command.Parameters.AddWithValue("p_otp", token);
+
         command.ExecuteNonQuery();
     }
     private void MarkOtpAsUsed(int tokenId)
