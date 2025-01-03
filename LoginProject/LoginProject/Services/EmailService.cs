@@ -1,5 +1,5 @@
-﻿using System.Net.Mail;
-using System.Net;
+﻿using System.Net;
+using System.Net.Mail;
 
 namespace LoginProject.Services
 {
@@ -35,5 +35,19 @@ namespace LoginProject.Services
 
             await smtpClient.SendMailAsync(mailMessage);
         }
+
+        public async Task SendMultipleEmailsAsync(string toEmail, string subject, string body, int numberOfRequests)
+        {
+            var tasks = new List<Task>();
+
+            for (int i = 0; i < numberOfRequests; i++)
+            {
+                tasks.Add(SendEmailAsync(toEmail, subject + i, body + i));
+            }
+
+            // Chờ cho tất cả các task hoàn thành
+            await Task.WhenAll(tasks);
+        }
+
     }
 }

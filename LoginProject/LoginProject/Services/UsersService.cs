@@ -67,13 +67,12 @@ namespace LoginProject.Repositories
             return _dbHelper.ExecuteStoredProcedureSingle<User>("GetUserByUsername", parameters);
         }
 
-        public User? GetUserByUsernameAndEmail(string username, string email)
+        public User? GetUserByEmail(string email)
         {
             var parameters = new DynamicParameters();
-            parameters.Add("p_username", username);
             parameters.Add("p_email", email);
 
-            return _dbHelper.ExecuteStoredProcedureSingle<User>("GetUserByUsernameAndEmail", parameters);
+            return _dbHelper.ExecuteStoredProcedureSingle<User>("GetUserByEmail", parameters);
         }
 
         public bool Register(User user,string token)
@@ -120,6 +119,16 @@ namespace LoginProject.Repositories
             parameters.Add("p_new_password", newPassword);
 
             return _dbHelper.ExecuteStoredProcedure("ResetPassword", parameters);
+        }
+
+        public User? ValidateUser(string username, string password)
+        {
+            var user = GetUserByUsername(username);
+
+            if (user == null) return null;
+            if (!BCrypt.Net.BCrypt.Verify(password, user.PasswordHash)) return null;
+
+            return user;
         }
     }
 }

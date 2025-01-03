@@ -1,19 +1,12 @@
-﻿using BCrypt.Net;
-using LoginProject.Data;
-using LoginProject.DTO;
+﻿using LoginProject.DTO;
 using LoginProject.Models;
 using LoginProject.Repositories;
 using LoginProject.Services;
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Identity.Data;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.IdentityModel.Tokens;
-using Org.BouncyCastle.Crypto.Generators;
-using System.Data;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
-using static Org.BouncyCastle.Math.EC.ECCurve;
 
 namespace LoginProject.Controllers
 {
@@ -24,19 +17,22 @@ namespace LoginProject.Controllers
         private readonly UsersService _usersService;
         private readonly IConfiguration _config;
         private readonly EmailService _emailService;
+        private readonly RedisService _redisService;
 
-        public AuthController(UsersService usersService, IConfiguration configuration, EmailService emailService)
+        public AuthController(UsersService usersService, IConfiguration configuration, EmailService emailService,RedisService redisService)
         {
             _usersService = usersService;
             _config = configuration;
             _emailService = emailService;
+            _redisService = redisService;
         }
 
         [HttpPost("register")]
         public async Task<IActionResult> Register([FromBody] DTO.RegisterRequest request)
         {
             if (!ModelState.IsValid) return BadRequest(ModelState);
-            if (_usersService.GetUserByUsernameAndEmail(request.Username, request.Email) != null) return BadRequest("Username or Email is already existed!");
+            if (_usersService.GetUserByUsername(request.Username) != null) return BadRequest("Username is already existed");
+            if (_usersService.GetUserByEmail(request.Email) != null) return BadRequest("Email is already existed");
 
             var token = Guid.NewGuid().ToString();
             var newUser = new User
@@ -48,9 +44,7 @@ namespace LoginProject.Controllers
 
             if (!_usersService.Register(newUser, token)) return StatusCode(500, "Error occurred during registration");
 
-            await _emailService.SendEmailAsync(newUser.Email, "Verify Your Email",
-                   $"Token: {token}");
-
+            await _emailService.SendEmailAsync(newUser.Email, "Verify Your Email",$"Token: {token}");
             return Ok("User registered. Please verify your email.");
         }
 
@@ -71,9 +65,9 @@ namespace LoginProject.Controllers
 
             await _emailService.SendEmailAsync(request.Email, "Verify Your Email", $"Token: {token}");
             return Ok("Verification email resent.");
-        }
-
-        [HttpPost("forgot-password")]
+        }                                           
+                                                    
+        [HttpPost("forgot-password")]               
         public async Task<IActionResult> ForgotPassword([FromBody] ForgotPassRequest request)
         {
             if (!ModelState.IsValid) return BadRequest(ModelState);
@@ -94,27 +88,32 @@ namespace LoginProject.Controllers
         }
 
         [HttpPost("login")]
-        public IActionResult Login([FromBody] DTO.LoginRequest request)
+        public async Task<IActionResult> Login([FromBody] DTO.LoginRequest request)
         {
             if (!ModelState.IsValid) return BadRequest(ModelState);
-
-            var user = AuthenticateUser(request.Username, request.Password);
-
+            var user = _usersService.ValidateUser(request.Username, request.Password);
             if (user == null) return Unauthorized("Invalid credentials.");
             if (!user.IsEmailVerified) return Unauthorized("Account is not verified.");
 
             var token = GenerateJwtToken(user);
+            var key = $"jwt_{user.UserId}";
+            await _redisService.SetCacheAsync(key, token,TimeSpan.FromMinutes(30));
             return Ok(new { Token = token });
         }
 
-        private User? AuthenticateUser(string username, string password)
+        [HttpGet("get-token")]
+        public async Task<IActionResult> GetToken([FromQuery] string key)
         {
-            var user = _usersService.GetUserByUsername(username);
+            var token = await _redisService.GetCacheAsync(key);
+            if (token == null) return NotFound("Token not found or expired.");
+            return Ok(new { Token = token });
+        }
 
-            if (user == null) return null;
-            if (!BCrypt.Net.BCrypt.Verify(password, user.PasswordHash)) return null;
-
-            return user;
+        [HttpPost("test-send-20-mail")]
+        public async Task<IActionResult> TestRegister()
+        {
+            await _emailService.SendMultipleEmailsAsync("mnhduc3012@gmail.com","test", "test", 20);
+            return Ok("Test completed");
         }
 
         private string GenerateJwtToken(User user)
