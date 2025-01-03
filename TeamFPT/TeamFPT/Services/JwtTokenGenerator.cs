@@ -16,8 +16,12 @@ namespace TeamFPT.Services
             _configuration = configuration;
         }
 
-        public string GenerateToken(User user)
+        public string GenerateToken(UserAuthentication user)
         {
+            if (string.IsNullOrEmpty(user.UserRole))
+            {
+                throw new ArgumentNullException("User Roleproperties are null or empty");
+            }
             var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["Jwt:Key"]));
             var credentials = new SigningCredentials(securityKey, SecurityAlgorithms.HmacSha256);
             var tokenDescriptor = new SecurityTokenDescriptor
@@ -26,7 +30,7 @@ namespace TeamFPT.Services
              {
                     new Claim(ClaimTypes.NameIdentifier, user.Username),
                     new Claim(ClaimTypes.Email, user.Email),
-                    new Claim(ClaimTypes.Role, user.Role)
+                    new Claim(ClaimTypes.Role, user.UserRole)
                 }),
                 Issuer = _configuration["Jwt:Issuer"],
                 Expires = DateTime.Now.AddMinutes(_configuration.GetValue<int>("Jwt:TokenValidityMins")),

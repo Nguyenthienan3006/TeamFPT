@@ -7,92 +7,46 @@ namespace TeamFPT.Repositories
     public class UserRepository
     {
         private readonly string _connectionString;
-
         public UserRepository(IConfiguration configuration)
         {
             _connectionString = configuration.GetConnectionString("MySqlConnection");
         }
-        public User Login(string username, string password)
+        public UserAuthentication Login(string username, string password)
         {
             using var connection = new MySqlConnection(_connectionString);
-            using var command = new MySqlCommand("sp_Login", connection)
-            {
-                CommandType = CommandType.StoredProcedure
-            };
-            command.Parameters.AddWithValue("p_username", username);
-            command.Parameters.AddWithValue("p_password", password);
+          connection.Open();
 
-            connection.Open();
-            using var reader = command.ExecuteReader();
+            using var command = new MySqlCommand("Login", connection);
+            command.CommandType = CommandType.StoredProcedure;
+            command.Parameters.AddWithValue("@p_Username", username);
+            command.Parameters.AddWithValue("@p_Password", password);
+
+            using var reader =  command.ExecuteReader();
             if (reader.Read())
             {
-                return new User
+                var user = new Users
                 {
-                    UserId = reader.GetInt32("user_id"),
-                    Username = reader.GetString("username"),
-                    Email = reader.GetString("email"),
-                    Role = reader.GetString("role")
+                    UserId = reader.GetInt32("UserId"),
+                    FirstName = reader.GetString("FirstName"),
+                    LastName = reader.GetString("LastName")
+                };
+
+                return new UserAuthentication
+                {
+                    UserId = reader.GetInt32("UserId"),
+                    Username = reader.GetString("Username"),
+                    Email = reader.GetString("Email"),
+                    UserRole = reader.GetString("UserRole"),
+                    User = user
                 };
             }
             return null;
         }
 
-        public void Register(User user)
+        public void Register(Users user)
         {
-            using var connection = new MySqlConnection(_connectionString);
-            using var command = new MySqlCommand("sp_Register", connection)
-            {
-                CommandType = CommandType.StoredProcedure
-            };
-            command.Parameters.AddWithValue("p_username", user.Username);
-            command.Parameters.AddWithValue("p_password", user.Password);
-            command.Parameters.AddWithValue("p_email", user.Email);
-            command.Parameters.AddWithValue("p_role", user.Role);
-
-            connection.Open();
-            command.ExecuteNonQuery();
+          
         }
-        public User? GetUserByUsername(string username)
-        {
-            using var connection = new MySqlConnection(_connectionString);
-            using var command = new MySqlCommand("sp_GetUserByUsername", connection)
-            {
-                CommandType = CommandType.StoredProcedure
-            };
-
-            command.Parameters.AddWithValue("p_username", username);
-
-            connection.Open();
-            using var reader = command.ExecuteReader();
-            if (reader.Read())
-            {
-                return new User
-                {
-                    UserId = reader.GetInt32("user_id"),
-                    Username = reader.GetString("username"),
-                    Email = reader.GetString("email"),
-                    Role = reader.GetString("role")
-                };
-            }
-
-            return null;
-        }
-        public bool UpdateUser(User user)
-        {
-            using var connection = new MySqlConnection(_connectionString);
-            using var command = new MySqlCommand("UpdateUser", connection)
-            {
-                CommandType = CommandType.StoredProcedure
-            };
-
-            command.Parameters.AddWithValue("p_UserId", user.UserId);
-            command.Parameters.AddWithValue("p_Username", user.Username);
-            command.Parameters.AddWithValue("p_Email", user.Email);
-
-            connection.Open();
-            int rowsAffected = command.ExecuteNonQuery();
-            return rowsAffected > 0;
-        }
-
+     
     }
 }

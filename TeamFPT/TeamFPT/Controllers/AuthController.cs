@@ -5,6 +5,7 @@ using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
+using TeamFPT.DTO;
 using TeamFPT.Model;
 using TeamFPT.Repositories;
 using TeamFPT.Services;
@@ -25,42 +26,31 @@ namespace TeamFPT.Controllers
             _configuration = configuration;
             _jwtTokenGenerator = jwtTokenGenerator;
         }
-        [HttpGet("userinfo")]
-        [Authorize] // Bắt buộc phải có JWT token hợp lệ
-        public IActionResult GetUserInfo()
-        {
-            // Lấy thông tin từ claim của JWT token
-            var username = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (string.IsNullOrEmpty(username))
-                return Unauthorized("Token không hợp lệ.");
-
-            var user = _userRepositories.GetUserByUsername(username);
-            if (user == null)
-                return NotFound("Người dùng không tồn tại.");
-
-            return Ok(new
-            {
-                user.UserId,
-                user.Username,
-                user.Email,
-                user.Role
-            });
-        }
+        
         [HttpPost("login")]
         public IActionResult Login([FromBody] LoginUserRequest request)
         {
-            var user = _userRepositories.Login(request.Username, request.Password);
-            if (user == null) return Unauthorized("Invalid credentials.");
-
-            var token = _jwtTokenGenerator.GenerateToken(user);
-            return Ok(token);
+            var userAuth = _userRepositories.Login(request.Username, request.Password);
+            if (userAuth == null) return Unauthorized("Invalid credentials.");
+            var token = _jwtTokenGenerator.GenerateToken(userAuth);
+            return Ok(new
+            {
+                token,
+                user = new
+                {
+                    userAuth.Username,
+                    userAuth.Email,
+                    userAuth.UserRole,
+                    userAuth.User.FirstName,
+                    userAuth.User.LastName
+                }
+            });
         }
 
         [HttpPost("register")]
-        public IActionResult Register([FromBody] User user)
+        public IActionResult Register([FromBody] Users user)
         {
-            _userRepositories.Register(user);
-            return Ok("Registration successful.");
+            return null;
         }
 
 
