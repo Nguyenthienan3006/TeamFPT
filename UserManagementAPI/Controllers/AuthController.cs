@@ -62,7 +62,7 @@ public class AuthController : ControllerBase
             var cacheKey = $"auth_token:{existingUser.Id}";
             var cacheOptions = new DistributedCacheEntryOptions
             {
-                AbsoluteExpirationRelativeToNow = TimeSpan.FromHours(1) // Token hết hạn sau 1 giờ
+                AbsoluteExpirationRelativeToNow = TimeSpan.FromHours(1) 
             };
             await cache.SetStringAsync(cacheKey, token, cacheOptions);
 
@@ -70,6 +70,7 @@ public class AuthController : ControllerBase
         }
         catch (Exception ex)
         {
+
             Console.WriteLine($"Error in Login: {ex.Message}");
             return StatusCode(500, "An error occurred while processing your request.");
         }
@@ -99,16 +100,7 @@ public class AuthController : ControllerBase
         }
     }
 
-
-
-    private bool ValidateToken(string token, string userId, IDistributedCache cache)
-    {
-        var cacheKey = $"auth_token:{userId}";
-        var cachedToken = cache.GetString(cacheKey);
-
-        return cachedToken == token; 
-    }
-
+    //Forgot-password
     [HttpPost("forgot-password")]
     public IActionResult ForgotPassword([FromBody] string username)
     {
