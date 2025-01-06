@@ -15,49 +15,10 @@ namespace LoginProject.Repositories
             _dbHelper = dbHelper;
         }
 
-        //public List<User>? GetAllUsers()
-        //{
-
-        //    var users = new List<User>();
-
-        //    try
-        //    {
-
-        //        using var connection = _dbHelper.CreateConnection();
-        //        using var command = connection.CreateCommand();
-        //        command.CommandText = "GetAllUsers";
-        //        command.CommandType = CommandType.StoredProcedure;
-
-        //        connection.Open();
-        //        using var reader = command.ExecuteReader();
-        //        while (reader.Read())
-        //        {
-        //            var user = new User
-        //            {
-        //                Id = Convert.ToInt32(reader["id"]),
-        //                Username = reader["username"].ToString(),
-        //                Email = reader["email"].ToString(),
-        //                Password = reader["password"].ToString(),
-        //                Role = reader["role"].ToString(),
-        //                IsVerified = Convert.ToBoolean(reader["is_verified"]),
-        //                VerificationToken = reader["verification_token"]?.ToString(),
-        //                VerificationTokenExpiration = reader["verification_token_expiration"] != DBNull.Value
-        //            ? Convert.ToDateTime(reader["verification_token_expiration"])
-        //            : (DateTime?)null,
-        //                ResetPasswordToken = reader["reset_password_token"]?.ToString(),
-        //                ResetPasswordTokenExpiration = reader["reset_password_token_expiration"] != DBNull.Value
-        //            ? Convert.ToDateTime(reader["reset_password_token_expiration"])
-        //            : (DateTime?)null
-        //            };
-        //            users.Add(user);
-        //        }
-        //    }
-        //    catch (Exception ex)
-        //    {
-        //        Console.WriteLine(ex.Message);
-        //    }
-        //    return users.Count > 0 ? users : null;
-        //}
+        public List<User>? GetAllUsers()
+        {
+            return _dbHelper.ExecuteStoredProcedure<User>("GetAllUsers").ToList();
+        }
 
         public User? GetUserByUsername(string username)
         {

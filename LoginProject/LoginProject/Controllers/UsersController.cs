@@ -22,44 +22,23 @@ namespace LoginProject.Controllers
             _usersService = usersService;
         }
 
-        //[HttpGet("get-all")]
-        //public IActionResult GetAllUsers()
-        //{
-        //    try
-        //    {
-        //        var users = _usersService.GetAllUsers();
+        [HttpGet("get-all")]
+        public IActionResult GetAllUsers()
+        {
+            var users = _usersService.GetAllUsers();
+            if (users == null) return NotFound("No users found");
 
-        //        if (users == null)
-        //        {
-        //            return NotFound("No users found");
-        //        }
-        //        return Ok(users);
-        //    }
-        //    catch (Exception ex)
-        //    {
-        //        return StatusCode(500, $"Internal server error: {ex.Message}");
-        //    }
-        //}
+            return Ok(users);
+        }
 
-        //[HttpGet("{username}")]
-        //[Authorize]
-        //public IActionResult GetUserByUsername(string username)
-        //{
-        //    try
-        //    {
-        //        var user = _usersService.GetUserByUsername(username);
+        [HttpGet("{username}")]
+        [Authorize]
+        public IActionResult GetUserByUsername(string username)
+        {
+            var user = _usersService.GetUserByUsername(username);
+            if (user == null) return NotFound();
 
-        //        if (user == null)
-        //        {
-        //            return NotFound();
-        //        }
-        //        return Ok(user);
-        //    }
-        //    catch (Exception ex)
-        //    {
-        //        return StatusCode(500, $"Internal server error: {ex.Message}");
-        //    }
-
-        //}
+            return Ok(user);
+        }
     }
 }

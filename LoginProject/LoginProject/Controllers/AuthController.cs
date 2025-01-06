@@ -19,7 +19,7 @@ namespace LoginProject.Controllers
         private readonly EmailService _emailService;
         private readonly RedisService _redisService;
 
-        public AuthController(UsersService usersService, IConfiguration configuration, EmailService emailService,RedisService redisService)
+        public AuthController(UsersService usersService, IConfiguration configuration, EmailService emailService, RedisService redisService)
         {
             _usersService = usersService;
             _config = configuration;
@@ -44,7 +44,7 @@ namespace LoginProject.Controllers
 
             if (!_usersService.Register(newUser, token)) return StatusCode(500, "Error occurred during registration");
 
-            await _emailService.SendEmailAsync(newUser.Email, "Verify Your Email",$"Token: {token}");
+            await _emailService.SendEmailAsync(newUser.Email, "Verify Your Email", _emailService.GenerateVerificationAccountEmail(token));
             return Ok("User registered. Please verify your email.");
         }
 
@@ -63,18 +63,18 @@ namespace LoginProject.Controllers
             var token = Guid.NewGuid().ToString();
             if (!_usersService.InsertVerificationToken(request.Email, token)) return NotFound("User not found or already verified.");
 
-            await _emailService.SendEmailAsync(request.Email, "Verify Your Email", $"Token: {token}");
+            await _emailService.SendEmailAsync(request.Email, "Verify Your Email", _emailService.GenerateVerificationAccountEmail(token));
             return Ok("Verification email resent.");
-        }                                           
-                                                    
-        [HttpPost("forgot-password")]               
+        }
+
+        [HttpPost("forgot-password")]
         public async Task<IActionResult> ForgotPassword([FromBody] ForgotPassRequest request)
         {
             if (!ModelState.IsValid) return BadRequest(ModelState);
             var resetToken = Guid.NewGuid().ToString();
             if (!_usersService.InsertResetPasswordToken(request.Email, resetToken)) return NotFound("Email not found.");
 
-            await _emailService.SendEmailAsync(request.Email, "Password Reset Request", $"Token: {resetToken}");
+            await _emailService.SendEmailAsync(request.Email, "Password Reset Request", _emailService.GenerateResetPasswordEmail(resetToken));
             return Ok("Password reset email sent.");
         }
 
@@ -97,7 +97,7 @@ namespace LoginProject.Controllers
 
             var token = GenerateJwtToken(user);
             var key = $"jwt_{user.UserId}";
-            await _redisService.SetCacheAsync(key, token,TimeSpan.FromMinutes(30));
+            await _redisService.SetCacheAsync(key, token, TimeSpan.FromMinutes(30));
             return Ok(new { Token = token });
         }
 
@@ -110,9 +110,9 @@ namespace LoginProject.Controllers
         }
 
         [HttpPost("test-send-20-mail")]
-        public async Task<IActionResult> TestRegister()
+        public async Task<IActionResult> Test()
         {
-            await _emailService.SendMultipleEmailsAsync("mnhduc3012@gmail.com","test", "test", 20);
+            await _emailService.SendEmailAsync("mnhduc3012@gmail.com","test","test");
             return Ok("Test completed");
         }
 

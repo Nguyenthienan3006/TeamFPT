@@ -6,6 +6,7 @@ namespace LoginProject.DTO
     {
         [Required]
         [EmailAddress]
+        [MaxLength(100)]
         public string Email { get; set; }
     }
 }
