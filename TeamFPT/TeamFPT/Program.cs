@@ -16,6 +16,7 @@ namespace TeamFPT
             // Add services to the container.
             builder.Services.AddScoped<JwtTokenGenerator>();
             builder.Services.AddScoped<UserRepository>();
+            builder.Services.AddScoped<EmailService>();
             builder.Services.AddControllers();
 
             

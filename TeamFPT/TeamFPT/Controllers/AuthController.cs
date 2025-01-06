@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.Identity.Data;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.IdentityModel.Tokens;
+using System.ComponentModel.DataAnnotations;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
@@ -19,12 +20,14 @@ namespace TeamFPT.Controllers
         private readonly UserRepository _userRepositories;
         private readonly IConfiguration _configuration;
         private readonly JwtTokenGenerator _jwtTokenGenerator;
+        private readonly EmailService _emailService;
 
-        public AuthController(UserRepository userRepositories, IConfiguration configuration, JwtTokenGenerator jwtTokenGenerator)
+        public AuthController(UserRepository userRepositories, IConfiguration configuration, JwtTokenGenerator jwtTokenGenerator, EmailService emailService)
         {
             _userRepositories = userRepositories;
             _configuration = configuration;
             _jwtTokenGenerator = jwtTokenGenerator;
+            _emailService = emailService;
         }
         
         [HttpPost("login")]
@@ -33,6 +36,14 @@ namespace TeamFPT.Controllers
             var userAuth = _userRepositories.Login(request.Username, request.Password);
             if (userAuth == null) return Unauthorized("Invalid credentials.");
             var token = _jwtTokenGenerator.GenerateToken(userAuth);
+            if (!userAuth.IsVerified)
+            {
+                var otp = _userRepositories.GenerateOtp();
+                _userRepositories.SaveOtp(userAuth.Email, otp);
+                _emailService.SendOtpEmailAsync(userAuth.Email, otp);
+                return Unauthorized("You must verify this account");
+                
+            }
             return Ok(new
             {
                 token,
@@ -48,11 +59,33 @@ namespace TeamFPT.Controllers
         }
 
         [HttpPost("register")]
-        public IActionResult Register([FromBody] Users user)
+        public IActionResult Register([FromBody] DTO.RegisterRequest user)
         {
-            return null;
+            var validationResult = _userRepositories.ValidateUser(user);
+            if (validationResult.IsValid)
+            {
+                _userRepositories.Register(user);
+
+                // Generate OTP
+                var otp = _userRepositories.GenerateOtp();
+
+                // Save OTP to the database and send it via email
+                _userRepositories.SaveOtp(user.Email, otp);
+                _emailService.SendOtpEmailAsync(user.Email, otp);
+                return Ok("User registered successfully. Please verify your email with the OTP sent.");
+            }
+            return BadRequest(new { Errors = validationResult.Errors });
         }
+        [HttpPost("verify-otp")]
+        public IActionResult VerifyOtp(string email, string otp)
+        {
+            var result = _userRepositories.VerifyOtp(email, otp);
+            if (!result)
+                return BadRequest("Invalid or expired OTP.");
 
-
+            return Ok("User verified successfully.");
+        }
+        
+        
     }
 }

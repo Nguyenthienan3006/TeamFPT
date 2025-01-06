@@ -18,5 +18,6 @@ namespace TeamFPT.DTO
         [RegularExpression(@"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$",
             ErrorMessage = "Password must contain at least one uppercase letter, one lowercase letter, one number and one special character")]
         public string Password { get; set; }
+        public string UserRole { get; set; } = "Customer";
     }
 }
