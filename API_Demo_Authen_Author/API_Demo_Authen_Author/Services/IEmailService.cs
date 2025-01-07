@@ -2,8 +2,8 @@
 {
     public interface IEmailService
     {
-        Task<bool> SendEmailAsync(string to, string subject, string body);
+        bool SendEmail(string to, string subject, string body);
 
-        Task<bool> ReSendTokenAsync(string email, int userId);
+        bool ReSendToken(string email, int userId);
     }
 }

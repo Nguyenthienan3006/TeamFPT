@@ -15,7 +15,7 @@ namespace API_Demo_Authen_Author.Services
             _tokenService = tokenService;
         }
 
-        public async Task<bool> SendEmailAsync(string to, string subject, string body)
+        public bool SendEmail(string to, string subject, string body)
         {
             try
             {
@@ -39,7 +39,7 @@ namespace API_Demo_Authen_Author.Services
                 };
 
                 message.To.Add(to);
-                await smtp.SendMailAsync(message);
+                smtp.Send(message);
 
                 return true;
             }
@@ -51,12 +51,12 @@ namespace API_Demo_Authen_Author.Services
             }
         }
 
-        public async Task<bool> ReSendTokenAsync(string email, int userId)
+        public bool ReSendToken(string email, int userId)
         {
             var token = Guid.NewGuid().ToString();
             var tokenExpiry = DateTime.UtcNow.AddMinutes(30);
 
-            if (await SendEmailAsync(email, "Email Verification", $"Your token is: {token}\nIt will expire at {tokenExpiry:HH:mm} UTC."))
+            if (SendEmail(email, "Email Verification", $"Your token is: {token}\nIt will expire at {tokenExpiry:HH:mm} UTC."))
             {
                 _tokenService.UpdateToken(userId, token, "EmailToken", tokenExpiry, false);
 

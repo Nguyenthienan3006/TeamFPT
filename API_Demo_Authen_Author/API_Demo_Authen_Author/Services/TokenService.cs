@@ -1,5 +1,6 @@
 ﻿using API_Demo_Authen_Author.Dto;
 using API_Demo_Authen_Author.Models;
+using Dapper;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.IdentityModel.Tokens;
 using MySqlConnector;
@@ -32,7 +33,7 @@ namespace API_Demo_Authen_Author.Services
             {
                 Subject = new ClaimsIdentity(new[]
                 {
-                    new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
+                    new Claim(ClaimTypes.NameIdentifier, user.UserId.ToString()),
                     new Claim(ClaimTypes.Name, user.Username),
                     new Claim(ClaimTypes.Email, user.Email),
                     new Claim(ClaimTypes.Role, user.Role)
@@ -94,25 +95,25 @@ namespace API_Demo_Authen_Author.Services
 
         public bool UpdateToken(int userId, string token, string tokenType, DateTime expiredDate, bool isUsed)
         {
-
             try
             {
                 using var connection = _dataService.GetConnection();
 
-                using var command = new MySqlCommand("sp_UpdateToken", connection)
-                {
-                    CommandType = CommandType.StoredProcedure
-                };
+                // Gọi stored procedure bằng Dapper
+                var result = connection.Execute(
+                    "sp_UpdateToken",
+                    new
+                    {
+                        p_UserId = userId,
+                        p_Token = token,
+                        p_TokenType = tokenType,
+                        p_ExpirationDate = expiredDate,
+                        p_IsUsed = isUsed
+                    },
+                    commandType: CommandType.StoredProcedure
+                );
 
-                command.Parameters.AddWithValue("p_UserId", userId);
-                command.Parameters.AddWithValue("p_Token", token);
-                command.Parameters.AddWithValue("p_TokenType", tokenType);
-                command.Parameters.AddWithValue("p_ExpirationDate", expiredDate);
-                command.Parameters.AddWithValue("p_IsUsed", isUsed);
-
-                var result = command.ExecuteNonQuery();
-                return result > 0 ? true : false;
-
+                return result > 0;
             }
             catch (Exception ex)
             {
@@ -120,6 +121,7 @@ namespace API_Demo_Authen_Author.Services
                 return false;
             }
         }
+
 
     }
 }

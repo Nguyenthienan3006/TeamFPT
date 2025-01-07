@@ -24,7 +24,7 @@ namespace API_Demo_Authen_Author.Controllers
         // Admin: Admin@123, Thien An: Ann@3006
         [HttpPost("login")]
         [AllowAnonymous]
-        public async Task<object> LoginAsync([FromBody] LoginDto userLogin)
+        public object Login([FromBody] LoginDto userLogin)
         {
             // Kiểm tra tính hợp lệ của dữ liệu đầu vào
             if (!ModelState.IsValid) return BadRequest(new { message = "Invalid input", errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage) });
@@ -43,8 +43,8 @@ namespace API_Demo_Authen_Author.Controllers
                 // Tạo token
                 var token = _tokenService.GenerateToken(user);
 
-                _tokenService.SaveTokenToRedisAsync(token, user.Id);      // Lưu token vào Redis với TTL (thời gian sống)
-                _tokenService.UpdateToken(user.Id, token, "Login", DateTime.Now.AddMinutes(30), false);     // Cập nhật token vào DB
+                _tokenService.SaveTokenToRedisAsync(token, user.UserId);      // Lưu token vào Redis với TTL (thời gian sống)
+                _tokenService.UpdateToken(user.UserId, token, "Login", DateTime.Now.AddMinutes(30), false);     // Cập nhật token vào DB
 
                 return Ok(new
                 {
@@ -62,7 +62,7 @@ namespace API_Demo_Authen_Author.Controllers
 
         [HttpPost("register")]
         [AllowAnonymous]
-        public async Task<IActionResult> RegisterAsync([FromBody] RegisterDto userRegister)
+        public IActionResult Register([FromBody] RegisterDto userRegister)
         {
             // Kiểm tra tính hợp lệ của dữ liệu đầu vào
             if (!ModelState.IsValid) return BadRequest(new { message = "Invalid input", errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage) });
@@ -85,7 +85,7 @@ namespace API_Demo_Authen_Author.Controllers
             if (result == null) return BadRequest("Registration failed.");
 
             // Gửi email
-            bool isEmailSent = await _emailService.SendEmailAsync(userRegister.Email, "Email Verification", verificationLink);
+            bool isEmailSent = _emailService.SendEmail(userRegister.Email, "Email Verification", verificationLink);
 
             if (isEmailSent) return Ok("Registration successful. Please verify your email.");
             else return StatusCode(500, "Something went wrong");
@@ -94,10 +94,10 @@ namespace API_Demo_Authen_Author.Controllers
 
         [HttpPost("verifyEmail")]
         [AllowAnonymous]
-        public async Task<IActionResult> VerifyEmailAsync([FromBody] VerifyEmailRequest request)
+        public IActionResult VerifyEmail([FromBody] VerifyEmailRequest request)
         {
             // Validate input
-            if (!ModelState.IsValid) 
+            if (!ModelState.IsValid)
                 return BadRequest(new { message = "Invalid input", errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage) });
 
             // Check email có tồn tại không
@@ -105,27 +105,26 @@ namespace API_Demo_Authen_Author.Controllers
             if (user == null) return BadRequest(new { message = "Invalid credentials" });
 
             // Check token hết hạn chưa
-            var isTokenValid = _tokenService.GetTokenInfo(user.Id, "EmailToken");
+            var isTokenValid = _tokenService.GetTokenInfo(user.UserId, "EmailToken");
             if (isTokenValid == null || isTokenValid.expiredDate < DateTime.UtcNow)
             {
-                if (await _emailService.ReSendTokenAsync(request.email, user.Id))
+                if (_emailService.ReSendToken(request.email, user.UserId))
                     return BadRequest(new { message = "Token expired. A new token has been sent to your email." });
 
                 return StatusCode(500, new { message = "Failed to send new token" });
             }
 
             // Verify token
-            if (!_userService.VerifyEmail(request.token, user.Id, request.email))
+            if (!_userService.VerifyEmail(request.token, user.UserId, request.email))
                 return BadRequest(new { message = "Email verification failed" });
 
             return Ok(new { message = "Email verification successful" });
         }
 
         [HttpPost("forgotPassword")]
-        public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordDto request)
+        public IActionResult ForgotPassword([FromBody] ForgotPasswordDto request)
         {
-            if (!ModelState.IsValid) 
-                return BadRequest(new { message = "Invalid input", errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage) });
+            if (!ModelState.IsValid) return BadRequest(new { message = "Invalid input", errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage) });
 
             // Kiểm tra user có tồn tại không
             var userToChangePass = _userService.GetUserByEmail(request.Email);
@@ -138,10 +137,10 @@ namespace API_Demo_Authen_Author.Controllers
             var body = $"{tokenInfo}";
 
             //lưu token vào DB
-            _tokenService.UpdateToken(userToChangePass.Id, token, "ForgotPassToken", DateTime.Now.AddMinutes(30), false);
+            _tokenService.UpdateToken(userToChangePass.UserId, token, "ForgotPassToken", DateTime.Now.AddMinutes(30), false);
 
             // Gửi mail
-            bool isEmailSent = await _emailService.SendEmailAsync(userToChangePass.Email, "Email Verification", body);
+            bool isEmailSent =_emailService.SendEmail(userToChangePass.Email, "Email Verification", body);
 
             if (!isEmailSent) return StatusCode(500, "Failed to send email!");
 
