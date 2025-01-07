@@ -18,6 +18,7 @@ namespace API_Demo_Authen_Author
 
             builder.Services.AddEndpointsApiExplorer();
 
+            // Authorize button
             builder.Services.AddSwaggerGen(options =>
             {
                 var jwtSecurityScheme = new OpenApiSecurityScheme
@@ -47,16 +48,14 @@ namespace API_Demo_Authen_Author
             builder.Services.AddScoped<IEmailService, EmailService>();
             builder.Services.AddScoped<IDataService, DataService>();
 
-            //========================================  Step 1  =============================================
+
             builder.Services.AddDbContext<DemoAPIContext>(options =>
     options.UseMySql(
         builder.Configuration.GetConnectionString("DefaultConnection"),
         new MySqlServerVersion(new Version(8, 0, 33))
     ));
 
-
-
-            //========================================  Step 2  =============================================
+            // JWT configuration
             builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
                 .AddJwtBearer(options =>
             {
@@ -74,7 +73,14 @@ namespace API_Demo_Authen_Author
             });
 
 
-            //========================================  Step 3  =============================================
+            // Redis configuration
+            builder.Services.AddStackExchangeRedisCache(options =>
+            {
+                options.Configuration = "localhost:6379"; // Chuỗi kết nối Redis
+                options.InstanceName = "JwtTokenCache:"; // Tiền tố cho các key trong Redis
+            });
+
+
             builder.Services.AddAuthorization();
 
             var app = builder.Build();
@@ -90,9 +96,6 @@ namespace API_Demo_Authen_Author
                 app.UseHttpsRedirection();
             }
 
-
-
-            //========================================  Step 4  =============================================
             app.UseAuthentication();
             app.UseAuthorization();
 

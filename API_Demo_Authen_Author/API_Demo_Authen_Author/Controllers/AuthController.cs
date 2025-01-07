@@ -1,11 +1,8 @@
 ﻿using API_Demo_Authen_Author.Dto;
-using API_Demo_Authen_Author.Models;
 using API_Demo_Authen_Author.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using NuGet.Common;
 using System.Security.Claims;
-using System.Text.RegularExpressions;
 
 namespace API_Demo_Authen_Author.Controllers
 {
@@ -24,30 +21,34 @@ namespace API_Demo_Authen_Author.Controllers
             _emailService = emailService;
         }
 
-
+        // Admin: Admin@123, Thien An: Ann@3006
         [HttpPost("login")]
         [AllowAnonymous]
-        public Object Login([FromBody] LoginDto userLogin)
+        public async Task<object> LoginAsync([FromBody] LoginDto userLogin)
         {
             // Kiểm tra tính hợp lệ của dữ liệu đầu vào
             if (!ModelState.IsValid) return BadRequest(new { message = "Invalid input", errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage) });
 
-            // kiểm tra user có tồn tại không
-            var isUserExist = _userService.Authenticate(userLogin);
-            if (isUserExist == null) return NotFound(new { message = "User not found" });
-            else if (isUserExist.IsEmailVerified == false) return BadRequest(new { message = "Email is not verified" });
+            // Lấy thông tin người dùng từ DB
+            var user = _userService.Authenticate(userLogin);
+            if (user == null) return NotFound(new { message = "User not found" });
+            if (!user.IsEmailVerified) return BadRequest(new { message = "Email is not verified" });
 
-            // Mỗi lần user login thì lại cập nhật token vào DB 1 lần
+            // Xác thực mật khẩu
+            if(!_userService.VerifyPasswordHash(userLogin.PassWord, user.passwordHash, user.passwordSalt))
+                return Unauthorized("Invalid username or password");
+
             try
             {
-                var token = _tokenService.GenerateToken(isUserExist);
+                // Tạo token
+                var token = _tokenService.GenerateToken(user);
 
-                // Cập nhật token vào DB
-                _tokenService.UpdateToken(isUserExist.Id, token, "Login", DateTime.Now.AddMinutes(30), false);
+                _tokenService.SaveTokenToRedisAsync(token, user.Id);      // Lưu token vào Redis với TTL (thời gian sống)
+                _tokenService.UpdateToken(user.Id, token, "Login", DateTime.Now.AddMinutes(30), false);     // Cập nhật token vào DB
 
                 return Ok(new
                 {
-                    UserName = isUserExist.Username,
+                    UserName = user.Username,
                     accessToken = token
                 });
             }
@@ -71,12 +72,15 @@ namespace API_Demo_Authen_Author.Controllers
             DateTime tokenExpiry = DateTime.Now.AddMinutes(30);
             var verificationLink = $"Your token is: {token}\nPlease note that your token will expire in 30 minutes at {tokenExpiry.ToString("HH:mm")}.";
 
-            // Kiểm tra email đã tồn tại trong DB
+            // Kiểm tra email đã tồn tại chưa
             var existingUser = _userService.GetUserByEmail(userRegister.Email);
             if (existingUser != null) return BadRequest(new { message = "User already exists" });
 
-            // Đăng ký user
-            bool result = _userService.RegisterUser(token, userRegister);
+            //Mã hóa mật khẩu
+            _userService.CreatePasswordHash(userRegister.PassWord, out byte[] passwordHash, out byte[] passwordSalt);
+
+            // Đăng ký user           
+            bool result = _userService.RegisterUser(token, userRegister, passwordHash, passwordSalt);
 
             if (result == null) return BadRequest("Registration failed.");
 
@@ -93,7 +97,8 @@ namespace API_Demo_Authen_Author.Controllers
         public async Task<IActionResult> VerifyEmailAsync([FromBody] VerifyEmailRequest request)
         {
             // Validate input
-            if (!ModelState.IsValid) return BadRequest(new { message = "Invalid input", errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage) });
+            if (!ModelState.IsValid) 
+                return BadRequest(new { message = "Invalid input", errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage) });
 
             // Check email có tồn tại không
             var user = _userService.GetUserByEmail(request.email);
@@ -110,16 +115,17 @@ namespace API_Demo_Authen_Author.Controllers
             }
 
             // Verify token
-            if (_userService.VerifyEmail(request.token, user.Id, request.email))
-                return Ok(new { message = "Email verification successful" });
+            if (!_userService.VerifyEmail(request.token, user.Id, request.email))
+                return BadRequest(new { message = "Email verification failed" });
 
-            return BadRequest(new { message = "Email verification failed" });
+            return Ok(new { message = "Email verification successful" });
         }
 
         [HttpPost("forgotPassword")]
         public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordDto request)
         {
-            if (!ModelState.IsValid) return BadRequest(new { message = "Invalid input", errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage) });
+            if (!ModelState.IsValid) 
+                return BadRequest(new { message = "Invalid input", errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage) });
 
             // Kiểm tra user có tồn tại không
             var userToChangePass = _userService.GetUserByEmail(request.Email);
@@ -142,40 +148,44 @@ namespace API_Demo_Authen_Author.Controllers
             return Ok("Password reset successfully. Please check your email.");
         }
 
-        [HttpPost("changePassword")]
-        public async Task<IActionResult> ChangePassword([FromBody] string newPass, string? token, int? uId)
+        [HttpPost("resetPassword")]
+        public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordDto resetPasswordDto)
         {
             // Kiểm tra đầu vào
-            if (string.IsNullOrEmpty(newPass) || newPass.Length < 8)
-                return BadRequest("New password must be at least 8 characters long.");
+            if (!ModelState.IsValid) 
+                return BadRequest(new { message = "Invalid input", errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage) });
 
-            if (!string.IsNullOrEmpty(newPass) && ! _userService.HasValidPasswordFormat(newPass))
-                return BadRequest("New password must contain at least one uppercase letter, one number, and one special character.");
-
-            int userId;
-
-            if (!string.IsNullOrEmpty(token) && uId > 0) // Qua email
-            {
-                // Kiểm tra token hợp lệ
-                var tokenInfo = _tokenService.GetTokenInfo((int)uId, "ForgotPassToken");
-                if (tokenInfo == null || tokenInfo.expiredDate < DateTime.UtcNow)
-                    return BadRequest(new { message = "Token has expired. Please initiate the Forgot Password process again." });
-
-                userId = (int)uId;
-            }
-            else // User đã login
-            {
-                // Lấy ra userId
-                if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out userId))
-                    return Unauthorized("User is not logged in.");
-            }
+            // Kiểm tra token hợp lệ
+            var tokenInfo = _tokenService.GetTokenInfo(resetPasswordDto.UserId, "ForgotPassToken");
+            if (tokenInfo == null || tokenInfo.expiredDate < DateTime.UtcNow)
+                return BadRequest(new { message = "Token has expired. Please initiate the Forgot Password process again." });
 
             // Cập nhật mật khẩu
-            if (_userService.UpdateUserPassword(userId, newPass))
+            if (_userService.UpdateUserPassword(resetPasswordDto.UserId, resetPasswordDto.NewPassword))
+                return Ok("Password reset successfully.");
+
+            return BadRequest("Failed to change password.");
+        }
+
+
+        [HttpPost("changePassword")]
+        [Authorize]
+        public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordDto request)
+        {
+            if(!ModelState.IsValid)
+                return BadRequest(new { message = "Invalid input", errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage) });
+
+            // Lấy userId từ token JWT
+            if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out int userId))
+                return Unauthorized("User is not logged in.");
+
+            // Cập nhật mật khẩu
+            if (_userService.UpdateUserPassword(userId, request.newPass))
                 return Ok("Password changed successfully.");
 
             return BadRequest("Failed to change password.");
         }
+
 
     }
 }

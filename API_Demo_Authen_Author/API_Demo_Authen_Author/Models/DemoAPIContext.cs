@@ -46,7 +46,8 @@ namespace API_Demo_Authen_Author.Models
 
                 entity.Property(e => e.FullName).HasMaxLength(100);
 
-                entity.Property(e => e.Password).HasMaxLength(255);
+                entity.Property(e => e.passwordHash).HasMaxLength(255);
+                entity.Property(e => e.passwordSalt).HasMaxLength(255);
 
                 entity.Property(e => e.Role)
                     .HasColumnType("enum('User','Admin')")

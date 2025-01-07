@@ -1,5 +1,6 @@
 ﻿using API_Demo_Authen_Author.Dto;
 using API_Demo_Authen_Author.Models;
+using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.IdentityModel.Tokens;
 using MySqlConnector;
 using System.Data;
@@ -13,11 +14,13 @@ namespace API_Demo_Authen_Author.Services
     {
         private readonly IConfiguration _config;
         private readonly IDataService _dataService;
+        private readonly IDistributedCache _cache;
 
-        public TokenService(IConfiguration config, IDataService dataService)
+        public TokenService(IConfiguration config, IDataService dataService, IDistributedCache cache)
         {
             _config = config;
             _dataService = dataService;
+            _cache = cache;
         }
 
         public string GenerateToken(User user)
@@ -78,6 +81,17 @@ namespace API_Demo_Authen_Author.Services
             }
         }
 
+        public async Task SaveTokenToRedisAsync(string token, int userId)
+        {
+            // Key định danh token cho user
+            var cacheKey = $"jwt:{userId}"; 
+            var cacheOptions = new DistributedCacheEntryOptions
+            {
+                AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(30) 
+            };
+            await _cache.SetStringAsync(cacheKey, token, cacheOptions);
+        }
+
         public bool UpdateToken(int userId, string token, string tokenType, DateTime expiredDate, bool isUsed)
         {
 
@@ -106,5 +120,6 @@ namespace API_Demo_Authen_Author.Services
                 return false;
             }
         }
+
     }
 }

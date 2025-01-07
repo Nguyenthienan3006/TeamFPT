@@ -10,7 +10,8 @@ namespace API_Demo_Authen_Author.Dto
 
         [Required(ErrorMessage = "Password is required.")]
         [StringLength(100, MinimumLength = 6, ErrorMessage = "Password must be at least 8 characters long.")]
-        //[RegularExpression(@"^(?=.*[A-Z])(?=.*\d).+$", ErrorMessage = "Password must contain at least one uppercase letter and one number.")]
+        [RegularExpression(@"^(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$",
+            ErrorMessage = "New password must contain at least one uppercase letter, one number, and one special character.")]
         public string PassWord { get; set; }
 
         [Required(ErrorMessage = "Email is required.")]

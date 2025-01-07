@@ -1,12 +1,7 @@
-﻿using System.Collections.Generic;
-using System.Threading.Tasks;
-using Microsoft.AspNetCore.Mvc;
+﻿using API_Demo_Authen_Author.Services;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.Extensions.Configuration;
-using MySqlConnector;
-using API_Demo_Authen_Author.Dto;
+using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
-using API_Demo_Authen_Author.Services;
 
 namespace API_Demo_Authen_Author.Controllers
 {

@@ -1,22 +1,18 @@
 ﻿using API_Demo_Authen_Author.Dto;
 using API_Demo_Authen_Author.Models;
-using MessagePack;
-using Microsoft.Extensions.Configuration;
 using MySqlConnector;
 using System.Data;
-using System.Text.RegularExpressions;
+using System.Security.Cryptography;
 
 namespace API_Demo_Authen_Author.Services
 {
     public class UserService : IUserService
     {
-        private readonly IConfiguration _config;
         private readonly IDataService _dataService;
         private readonly ITokenService _tokenService;
 
-        public UserService(IConfiguration config, IDataService dataService, ITokenService tokenService)
+        public UserService(IDataService dataService, ITokenService tokenService)
         {
-            _config = config;
             _dataService = dataService;
             _tokenService = tokenService;
         }
@@ -31,7 +27,6 @@ namespace API_Demo_Authen_Author.Services
             };
 
             command.Parameters.AddWithValue("p_username", userLogin.UserName);
-            command.Parameters.AddWithValue("p_password", userLogin.PassWord);
 
             using var reader = command.ExecuteReader();
             if (reader.Read())
@@ -42,7 +37,9 @@ namespace API_Demo_Authen_Author.Services
                     Username = reader.GetString("username"),
                     Email = reader.GetString("email"),
                     Role = reader.GetString("role"),
-                    IsEmailVerified = reader.GetBoolean("IsEmailVerified")
+                    IsEmailVerified = reader.GetBoolean("IsEmailVerified"),
+                    passwordHash = (byte[])reader["passwordHash"],
+                    passwordSalt = (byte[])reader["passwordSalt"]
                 };
             }
 
@@ -54,7 +51,7 @@ namespace API_Demo_Authen_Author.Services
             using var connection = _dataService.GetConnection();
 
             var users = new List<UserDto>();
-            
+
             using var command = new MySqlCommand("sp_GetAllUsers", connection)
             {
                 CommandType = System.Data.CommandType.StoredProcedure
@@ -76,7 +73,7 @@ namespace API_Demo_Authen_Author.Services
             return users;
         }
 
-        public bool RegisterUser(string token, RegisterDto userRegister)
+        public bool RegisterUser(string token, RegisterDto userRegister, byte[] passwordHash, byte[] passwordSalt)
         {
             using var connection = _dataService.GetConnection();
 
@@ -87,7 +84,8 @@ namespace API_Demo_Authen_Author.Services
             };
 
             command.Parameters.AddWithValue("p_username", userRegister.UserName);
-            command.Parameters.AddWithValue("p_password", userRegister.PassWord);
+            command.Parameters.AddWithValue("p_passwordHash", passwordHash);
+            command.Parameters.AddWithValue("p_passwordSalt", passwordSalt);
             command.Parameters.AddWithValue("p_email", userRegister.Email);
 
             var result1 = command.ExecuteNonQuery();
@@ -172,11 +170,22 @@ namespace API_Demo_Authen_Author.Services
             return new string(new char[length].Select(c => chars[random.Next(chars.Length)]).ToArray());
         }
 
-        public bool HasValidPasswordFormat(string password)
+        public void CreatePasswordHash(string password, out byte[] passwordHash, out byte[] passwordSalt)
         {
-            // Ít nhất 1 ký tự in hoa, 1 số, và 1 ký tự đặc biệt
-            var passwordRegex = new Regex(@"^(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$");
-            return passwordRegex.IsMatch(password);
+            using (var hmac = new HMACSHA512())
+            {
+                passwordSalt = hmac.Key;
+                passwordHash = hmac.ComputeHash(System.Text.Encoding.UTF8.GetBytes(password));
+            }
+        }
+
+        public bool VerifyPasswordHash(string password, byte[] passwordHash, byte[] passwordSalt)
+        {
+            using (var hmac = new HMACSHA512(passwordSalt))
+            {
+                var computedHash = hmac.ComputeHash(System.Text.Encoding.UTF8.GetBytes(password));
+                return computedHash.SequenceEqual(passwordHash);
+            }
         }
     }
 }
