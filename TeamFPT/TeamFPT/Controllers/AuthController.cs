@@ -65,11 +65,7 @@ namespace TeamFPT.Controllers
             if (validationResult.IsValid)
             {
                 _userRepositories.Register(user);
-
-                // Generate OTP
                 var otp = _userRepositories.GenerateOtp();
-
-                // Save OTP to the database and send it via email
                 _userRepositories.SaveOtp(user.Email, otp);
                 _emailService.SendOtpEmailAsync(user.Email, otp);
                 return Ok("User registered successfully. Please verify your email with the OTP sent.");
@@ -85,7 +81,39 @@ namespace TeamFPT.Controllers
 
             return Ok("User verified successfully.");
         }
-        
-        
+        [Authorize]
+        [HttpPost("change-password")]
+        public IActionResult ChangePassword([FromBody] ChangePasswordRequest request)
+        {
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));  // Lấy userId từ JWT token
+
+            try
+            {
+                _userRepositories.ChangePassword(userId, request.OldPassword, request.NewPassword);
+                return Ok("Password changed successfully.");
+            }
+            catch (Exception ex)
+            {
+                return BadRequest("Failed to change password.");
+            }
+        }
+        [HttpPost("request-reset-password")]
+        public IActionResult RequestResetPassword([FromBody] ResetPasswordRequestcs request)
+        {
+            if (!_userRepositories.CheckEmailExists(request.Email)) return NotFound("Email does not exist.");
+            var otp = _userRepositories.GenerateOtp();
+            _userRepositories.SaveResetPasswordOtp(request.Email, otp);
+            _emailService.SendOtpEmailAsync(request.Email, otp);
+            return Ok("Reset password OTP sent to your email.");
+        }
+
+        [HttpPost("verify-reset-password")]
+        public IActionResult VerifyResetPassword([FromBody] VerifyResetPasswordRequest request)
+        {
+            if (!_userRepositories.VerifyResetPasswordOtp(request.Email, request.Otp))return BadRequest("Invalid or expired OTP.");
+            _userRepositories.UpdatePassword(request.Email, request.NewPassword);
+            return Ok("Password reset successfully.");
+        }
+
     }
 }

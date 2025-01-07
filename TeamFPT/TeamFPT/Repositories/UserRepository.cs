@@ -73,14 +73,14 @@ namespace TeamFPT.Repositories
 
             var command = new MySqlCommand(
                 "INSERT INTO Tokens (UserId, TokenType, TokenValue, Expiration) " +
-                "SELECT UserId, 'OTP', @Otp, DATE_ADD(NOW(), INTERVAL 20 SECOND) FROM UserAuthentication WHERE Email = @Email", connection);
+                "SELECT UserId, 'OTP', @Otp, DATE_ADD(NOW(), INTERVAL 40 SECOND) FROM UserAuthentication WHERE Email = @Email", connection);
             command.Parameters.AddWithValue("@Otp", otp);
             command.Parameters.AddWithValue("@Email", email);
-
-            command.ExecuteNonQuery();
+            var rowsAffected = command.ExecuteNonQuery();
+            if (rowsAffected == 0) throw new Exception("Failed to save OTP. Email not found.");
         }
 
-        private bool IsUniqueEmail(string email)
+        public bool IsUniqueEmail(string email)
         {
             using var connection = new MySql.Data.MySqlClient.MySqlConnection(_connectionString);
             connection.Open();
@@ -91,6 +91,18 @@ namespace TeamFPT.Repositories
 
             return (long)command.ExecuteScalar() == 0;
         }
+        public bool CheckEmailExists(string email)
+        {
+            using var connection = new MySqlConnection(_connectionString);
+            connection.Open();
+
+            var command = new MySqlCommand(
+                "SELECT COUNT(*) FROM UserAuthentication WHERE Email = @Email", connection);
+            command.Parameters.AddWithValue("@Email", email);
+
+            return (long)command.ExecuteScalar() > 0;
+        }
+
         public ValidationResults ValidateUser(RegisterRequest user)
         {
             var result = new ValidationResults();
@@ -127,32 +139,43 @@ namespace TeamFPT.Repositories
         }
         public bool VerifyOtp(string email, string otp)
         {
-            using var connection = new MySql.Data.MySqlClient.MySqlConnection(_connectionString);
+            using var connection = new MySqlConnection(_connectionString);
             connection.Open();
-
-            var command = new MySql.Data.MySqlClient.MySqlCommand(
-                "SELECT u.UserId FROM UserAuthentication u " +
-                "JOIN Tokens t ON u.UserId = t.UserId " +
-                "WHERE u.Email = @Email AND t.TokenValue = @Otp AND t.Expiration > NOW()", connection);
-            command.Parameters.AddWithValue("@Email", email);
-            command.Parameters.AddWithValue("@OTP", otp);
-            var userId = command.ExecuteScalar();
-
-            if (userId != null)
+            int tokenId;
+            using (var command = new MySqlCommand(
+                "SELECT t.TokenId, t.Expiration " +
+                "FROM Tokens t " +
+                "JOIN UserAuthentication u ON t.UserId = u.UserId " +
+                "WHERE u.Email = @Email AND t.TokenValue = @Otp AND t.Expiration > NOW()", connection))
             {
-                var updateCommand = new MySql.Data.MySqlClient.MySqlCommand(
-                    "UPDATE UserAuthentication SET IsVerified = 1 WHERE UserId = @UserId", connection);
-                updateCommand.Parameters.AddWithValue("@UserId", userId);
-                updateCommand.ExecuteNonQuery();
-                var deleteCommand = new MySqlCommand(
-           "DELETE FROM Tokens WHERE TokenValue = @Otp", connection);
-                deleteCommand.Parameters.AddWithValue("@Otp", otp);
-                deleteCommand.ExecuteNonQuery();
-                return true;
+                command.Parameters.AddWithValue("@Email", email);
+                command.Parameters.AddWithValue("@Otp", otp);
+
+                using var reader = command.ExecuteReader();
+                if (!reader.Read())
+                {
+                    return false; 
+                }
+                tokenId = reader.GetInt32("TokenId");
             }
 
-            return false;
+            // Xác minh email
+            using (var updateCommand = new MySqlCommand(
+                "UPDATE UserAuthentication SET IsVerified = 1 WHERE UserId = " +
+                "(SELECT UserId FROM Tokens WHERE TokenId = @TokenId)", connection))
+            {
+                updateCommand.Parameters.AddWithValue("@TokenId", tokenId);
+                updateCommand.ExecuteNonQuery();
+            }
+            using (var deleteCommand = new MySqlCommand("DELETE FROM Tokens WHERE TokenId = @TokenId", connection))
+            {
+                deleteCommand.Parameters.AddWithValue("@TokenId", tokenId);
+                deleteCommand.ExecuteNonQuery();
+            }
+
+            return true;
         }
+
         public void CleanupExpiredOtp()
         {
             using var connection = new MySqlConnection(_connectionString);
@@ -175,6 +198,57 @@ namespace TeamFPT.Repositories
             command.Parameters.AddWithValue("@p_UserId", userId);
             command.Parameters.AddWithValue("@p_OldPassword", oldPassword);
             command.Parameters.AddWithValue("@p_NewPassword", newPassword);
+
+            command.ExecuteNonQuery();
+        }
+        public void SaveResetPasswordOtp(string email, string otp)
+        {
+            CleanupExpiredOtp();
+            using var connection = new MySqlConnection(_connectionString);
+            connection.Open();
+
+            var command = new MySqlCommand(
+                "INSERT INTO Tokens (UserId, TokenType, TokenValue, Expiration) " +
+                "SELECT UserId, 'ResetPassword', @Otp, DATE_ADD(NOW(), INTERVAL 40 SECOND) FROM UserAuthentication WHERE Email = @Email", connection);
+            command.Parameters.AddWithValue("@Otp", otp);
+            command.Parameters.AddWithValue("@Email", email);
+
+            command.ExecuteNonQuery();
+        }
+        public bool VerifyResetPasswordOtp(string email, string otp)
+        {
+            using var connection = new MySqlConnection(_connectionString);
+            connection.Open();
+
+            var command = new MySqlCommand(
+                "SELECT u.UserId FROM UserAuthentication u " +
+                "JOIN Tokens t ON u.UserId = t.UserId " +
+                "WHERE u.Email = @Email AND t.TokenValue = @Otp AND t.TokenType = 'ResetPassword' AND t.Expiration > NOW()", connection);
+            command.Parameters.AddWithValue("@Email", email);
+            command.Parameters.AddWithValue("@Otp", otp);
+
+            var userId = command.ExecuteScalar();
+            if (userId != null)
+            {
+                var deleteCommand = new MySqlCommand(
+                    "DELETE FROM Tokens WHERE TokenValue = @Otp", connection);
+                deleteCommand.Parameters.AddWithValue("@Otp", otp);
+                deleteCommand.ExecuteNonQuery();
+                return true;
+            }
+
+            return false;
+        }
+
+        public void UpdatePassword(string email, string newPassword)
+        {
+            using var connection = new MySqlConnection(_connectionString);
+            connection.Open();
+
+            var command = new MySqlCommand(
+                "UPDATE UserAuthentication SET PasswordHash = @NewPassword WHERE Email = @Email", connection);
+            command.Parameters.AddWithValue("@Email", email);
+            command.Parameters.AddWithValue("@NewPassword", newPassword);
 
             command.ExecuteNonQuery();
         }
