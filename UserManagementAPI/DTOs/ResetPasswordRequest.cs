@@ -8,6 +8,7 @@ namespace UserManagementAPI.DTOs
         public string Username { get; set; }
         public string Otp { get; set; }
         [Required(ErrorMessage = "Password is not blank")]
+        [MinLength(8, ErrorMessage = "Password must be 8 character")]
         public string NewPassword { get; set; }
     }
 }
