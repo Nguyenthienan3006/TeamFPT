@@ -1,13 +1,10 @@
-﻿using LoginProject.Data;
-using LoginProject.Models;
+﻿using LoginProject.Attributes;
+using LoginProject.DTO;
 using LoginProject.Repositories;
+using LoginProject.Services;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
-using Org.BouncyCastle.Ocsp;
-using System.Data;
-using System.Linq.Expressions;
+using System.Security.Claims;
 
 namespace LoginProject.Controllers
 {
@@ -16,25 +13,38 @@ namespace LoginProject.Controllers
     public class UsersController : ControllerBase
     {
         private readonly UsersService _usersService;
+        private readonly JwtService _jwtService;
 
-        public UsersController(UsersService usersService)
+        public UsersController(UsersService usersService, JwtService jwtService)
         {
             _usersService = usersService;
+            _jwtService = jwtService;
         }
 
-        [HttpGet("get-all")]
-        public IActionResult GetAllUsers()
+        [HttpGet("get-list-users")]
+        [Cache(1000)]
+        public IActionResult GetAllUsers([FromQuery] PagingModel pagingModel)
         {
-            var users = _usersService.GetAllUsers();
+            if (!ModelState.IsValid) return BadRequest(ModelState);
+            var users = _usersService.GetPagedUsers(pagingModel.PageNumber, pagingModel.PageSize);
             if (users == null) return NotFound("No users found");
 
-            return Ok(users);
+            var totalCount = _usersService.GetTotalUserCount();
+            var totalPages = (int)Math.Ceiling(totalCount / (double)pagingModel.PageSize);
+            var result = new
+            {
+                TotalCount = totalCount,
+                TotalPages = totalPages,
+                Items = users
+            };
+            return Ok(result);
         }
 
         [HttpGet("{username}")]
         [Authorize]
-        public IActionResult GetUserByUsername(string username)
+        public async Task<IActionResult> GetUserByUsername(string username)
         {
+            if (!await _jwtService.CheckTokenRedis(User.FindFirstValue(ClaimTypes.NameIdentifier))) return Unauthorized();
             var user = _usersService.GetUserByUsername(username);
             if (user == null) return NotFound();
 

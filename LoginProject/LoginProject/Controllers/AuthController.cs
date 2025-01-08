@@ -18,13 +18,15 @@ namespace LoginProject.Controllers
         private readonly IConfiguration _config;
         private readonly EmailService _emailService;
         private readonly RedisService _redisService;
+        private readonly JwtService _jwtService;
 
-        public AuthController(UsersService usersService, IConfiguration configuration, EmailService emailService, RedisService redisService)
+        public AuthController(UsersService usersService, IConfiguration configuration, EmailService emailService, RedisService redisService, JwtService jwtService)
         {
             _usersService = usersService;
             _config = configuration;
             _emailService = emailService;
             _redisService = redisService;
+            _jwtService = jwtService;
         }
 
         [HttpPost("register")]
@@ -38,7 +40,7 @@ namespace LoginProject.Controllers
             var newUser = new User
             {
                 Username = request.Username,
-                PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password),
+                PasswordHash = _usersService.HashPassword(request.Password),
                 Email = request.Email,
             };
 
@@ -82,7 +84,7 @@ namespace LoginProject.Controllers
         public IActionResult ResetPassword([FromBody] DTO.ResetPasswordRequest request)
         {
             if (!ModelState.IsValid) return BadRequest(ModelState);
-            if (!_usersService.ResetPassword(request.Token, BCrypt.Net.BCrypt.HashPassword(request.NewPassword))) return BadRequest("Invalid or expired token.");
+            if (!_usersService.ResetPassword(request.Token, _usersService.HashPassword(request.NewPassword))) return BadRequest("Invalid or expired token.");
 
             return Ok("Password has been successfully reset.");
         }
@@ -95,9 +97,7 @@ namespace LoginProject.Controllers
             if (user == null) return Unauthorized("Invalid credentials.");
             if (!user.IsEmailVerified) return Unauthorized("Account is not verified.");
 
-            var token = GenerateJwtToken(user);
-            var key = $"jwt_{user.UserId}";
-            await _redisService.SetCacheAsync(key, token, TimeSpan.FromMinutes(30));
+            var token = await _jwtService.GenerateJwtToken(user);        
             return Ok(new { Token = token });
         }
 
@@ -112,30 +112,10 @@ namespace LoginProject.Controllers
         [HttpPost("test-send-20-mail")]
         public async Task<IActionResult> Test()
         {
-            await _emailService.SendEmailAsync("mnhduc3012@gmail.com","test","test");
+            await _emailService.SendEmailAsync("ducdmhe181735@fpt.edu.vn", "test", "test");
             return Ok("Test completed");
         }
 
-        private string GenerateJwtToken(User user)
-        {
-            var tokenHandler = new JwtSecurityTokenHandler();
-            var key = Encoding.UTF8.GetBytes(_config["Jwt:Key"]);
-            var tokenDescriptor = new SecurityTokenDescriptor
-            {
-                Subject = new ClaimsIdentity(new[]
-                {
-                new Claim(ClaimTypes.NameIdentifier, user.UserId.ToString()),
-                new Claim(ClaimTypes.Role, user.Role)
-            }),
-                Issuer = _config["Jwt:Issuer"],
-                Expires = DateTime.Now.AddMinutes(_config.GetValue<int>("Jwt:TokenValidityMins")),
-                Audience = _config["Jwt:Audience"],
-                SigningCredentials = new SigningCredentials(
-                    new SymmetricSecurityKey(key), SecurityAlgorithms.HmacSha256Signature)
-            };
 
-            var token = tokenHandler.CreateToken(tokenDescriptor);
-            return tokenHandler.WriteToken(token);
-        }
     }
 }

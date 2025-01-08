@@ -16,14 +16,15 @@ namespace LoginProject.Data
 
         private MySqlConnection GetConnection()
         {
-            return new MySqlConnection(_connectionString);
+            var connection = new MySqlConnection(_connectionString);
+            connection.Open();
+            return connection;
         }
 
         public bool ExecuteStoredProcedure(string storedProcedureName, object parameters = null)
         {
             using (var connection = GetConnection())
-            {
-                connection.Open();
+            {        
                 int rowsAffected = connection.Execute(storedProcedureName, parameters, commandType: CommandType.StoredProcedure);
                 return rowsAffected > 0;
             }
@@ -33,7 +34,6 @@ namespace LoginProject.Data
         {
             using (var connection = GetConnection())
             {
-                connection.Open();
                 return connection.Query<T>(storedProcedureName, parameters, commandType: CommandType.StoredProcedure);
             }
         }
@@ -42,7 +42,6 @@ namespace LoginProject.Data
         {
             using (var connection = GetConnection())
             {
-                connection.Open();   
                 return connection.QueryFirstOrDefault<T>(storedProcedureName, parameters, commandType: CommandType.StoredProcedure);
             }
         }

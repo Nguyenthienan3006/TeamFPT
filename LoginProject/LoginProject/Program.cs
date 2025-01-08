@@ -26,12 +26,14 @@ namespace LoginProject
 
             builder.Services.AddScoped<RedisService>();
 
+            builder.Services.AddScoped<JwtService>();
+
             builder.Services.AddSingleton<IConnectionMultiplexer>(sp => ConnectionMultiplexer.Connect(builder.Configuration["Redis:ConnectionString"]));
 
             builder.Services.AddStackExchangeRedisCache(options =>
             {
                 options.Configuration = builder.Configuration["Redis:ConnectionString"];
-                options.InstanceName = "MyAppInstance_"; 
+                options.InstanceName = "MyAppInstance_";
             });
 
             builder.Services.AddControllers();
@@ -65,20 +67,26 @@ namespace LoginProject
             builder.Services.AddSingleton<DatabaseHelper>();
 
             builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-                .AddJwtBearer(options =>
+            .AddJwtBearer(options =>
+            {
+                options.TokenValidationParameters = new TokenValidationParameters
                 {
-                    options.TokenValidationParameters = new TokenValidationParameters
-                    {
-                        ValidIssuer = builder.Configuration["Jwt:Issuer"],
-                        ValidAudience = builder.Configuration["Jwt:Audience"],
-                        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"])),
+                    ValidIssuer = builder.Configuration["Jwt:Issuer"],
+                    ValidAudience = builder.Configuration["Jwt:Audience"],
+                    IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"])),
 
-                        ValidateIssuer = true,
-                        ValidateAudience = true,
-                        ValidateLifetime = true,
-                        ValidateIssuerSigningKey = true,
-                    };
-                });
+                    ValidateIssuer = true,
+                    ValidateAudience = true,
+                    ValidateLifetime = true,
+                    ValidateIssuerSigningKey = true,
+                };
+
+
+
+
+            });
+
+            builder.Services.AddAuthorization();
 
             var app = builder.Build();
 
@@ -90,10 +98,11 @@ namespace LoginProject
                 app.UseSwagger();
                 app.UseSwaggerUI();
             }
-            else
-            {
-                app.UseHttpsRedirection();
-            }
+
+            app.UseHttpsRedirection();
+
+
+
 
             app.UseAuthentication();
 
@@ -103,6 +112,8 @@ namespace LoginProject
             app.MapControllers();
 
             app.Run();
+
         }
+
     }
 }

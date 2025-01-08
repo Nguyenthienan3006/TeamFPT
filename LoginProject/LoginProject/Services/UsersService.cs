@@ -15,6 +15,19 @@ namespace LoginProject.Repositories
             _dbHelper = dbHelper;
         }
 
+        public List<User>? GetPagedUsers(int pageNumber, int pageSize)
+        {
+            var parameters = new DynamicParameters();
+            parameters.Add("PageNumber", pageNumber);
+            parameters.Add("PageSize", pageSize);
+
+            return _dbHelper.ExecuteStoredProcedure<User>("GetPagedUsers", parameters).ToList();
+        }
+
+        public int GetTotalUserCount()
+        {
+            return _dbHelper.ExecuteStoredProcedureSingle<int>("GetTotalUserCount");
+        }
         public List<User>? GetAllUsers()
         {
             return _dbHelper.ExecuteStoredProcedure<User>("GetAllUsers").ToList();
@@ -36,7 +49,7 @@ namespace LoginProject.Repositories
             return _dbHelper.ExecuteStoredProcedureSingle<User>("GetUserByEmail", parameters);
         }
 
-        public bool Register(User user,string token)
+        public bool Register(User user, string token)
         {
             var parameters = new DynamicParameters();
             parameters.Add("p_username", user.Username);
@@ -52,14 +65,14 @@ namespace LoginProject.Repositories
             var parameters = new DynamicParameters();
             parameters.Add("p_verification_token", token);
 
-            return _dbHelper.ExecuteStoredProcedure("VerifyEmail",parameters);
+            return _dbHelper.ExecuteStoredProcedure("VerifyEmail", parameters);
         }
 
         public bool InsertVerificationToken(string email, string token)
         {
             var parameters = new DynamicParameters();
             parameters.Add("p_email", email);
-            parameters.Add("p_new_token",token);
+            parameters.Add("p_new_token", token);
 
             return _dbHelper.ExecuteStoredProcedure("InsertVerificationToken", parameters);
         }
@@ -85,11 +98,20 @@ namespace LoginProject.Repositories
         public User? ValidateUser(string username, string password)
         {
             var user = GetUserByUsername(username);
-
             if (user == null) return null;
-            if (!BCrypt.Net.BCrypt.Verify(password, user.PasswordHash)) return null;
+            if (!VerifyPassword(password, user.PasswordHash)) return null;
 
             return user;
+        }
+
+        public string HashPassword(string password)
+        {
+            return BCrypt.Net.BCrypt.HashPassword(password);
+        }
+
+        public bool VerifyPassword(string password,string hash)
+        {
+            return BCrypt.Net.BCrypt.Verify(password, hash);
         }
     }
 }
