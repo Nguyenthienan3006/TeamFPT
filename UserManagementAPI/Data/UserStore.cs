@@ -4,13 +4,13 @@ using System.Data;
 using UserManagementAPI.Models;
 using System.Configuration;
 using System.Security.Cryptography;
+using UserManagementAPI.DTOs;
 
 namespace UserManagementAPI.Data;
 
 public class UserStore
 {
     private readonly string _connectionString;
-    //private readonly MySqlConnection _connection;
 
     public UserStore(IConfiguration configuration)
     {
@@ -157,6 +157,31 @@ public class UserStore
         command.Parameters.AddWithValue("p_NewPassword", newPassword);
 
         command.ExecuteNonQuery();
+    }
+
+    public List<UserDTO> GetUsers()
+    {
+        using var connection = new MySqlConnection(_connectionString);
+        connection.Open();
+
+        var users = new List<UserDTO>();
+        using var command = new MySqlCommand("sp_GetAllUser", connection)
+        {
+            CommandType = System.Data.CommandType.StoredProcedure
+        };
+        using var reader = command.ExecuteReader();
+        while (reader.Read())
+        {
+            users.Add(new UserDTO
+            {
+                Id = reader.GetInt32("user_id"),
+                Username = reader.GetString("username"),
+                Email = reader.GetString("email"),
+                Role = reader.GetString("role"),
+                IsEmailVerified = reader.GetBoolean("IsEmailVerified")
+            });
+        }
+        return users;
     }
 
 

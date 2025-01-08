@@ -41,13 +41,51 @@ public class AuthController : ControllerBase
         };
 
         _userStore.AddUser(user);
+        var otp = _userStore.GenerateOtp(user.Id);
+        _emailService.SendEmail(user.Email, "Reset Password OTP", $"Your OTP is: {otp}");
 
         return Ok("User registered successfully.");
     }
 
-   
-    [HttpPost("login")]
+    [HttpPost("verify_email")]
+    public IActionResult VerifyEmail([FromBody] VerifyRequest request)
+    {
+        var user = _userStore.GetUserByUsername(request.Username);
+        if (user == null) return NotFound("User not found.");
+
+        var isValidOtp = _userStore.ValidateOtp(user.Id, request.Otp);
+        if (!isValidOtp) return BadRequest("Invalid or expired OTP.");
+
+        return Ok();
+    }
+    [HttpPost("login_Save_DB")]
     public async Task<IActionResult> Login([FromBody] LoginRequest request, [FromServices] IDistributedCache cache)
+    {
+        try
+        {
+            var existingUser = _userStore.GetUserByUsername(request.Username);
+            if (existingUser == null) return Unauthorized("Invalid username or password.");
+
+            if (!BCrypt.Net.BCrypt.Verify(request.Password, existingUser.Password)) return Unauthorized("Invalid username or password.");
+
+            var token = GenerateJwtToken(existingUser);
+
+            // Lưu token vào Redis
+            _userStore.SaveToken(existingUser.Id, token);
+
+            return Ok(new { Token = token });
+        }
+        catch (Exception ex)
+        {
+
+            Console.WriteLine($"Error in Login: {ex.Message}");
+            return StatusCode(500, "An error occurred while processing your request.");
+        }
+    }
+
+
+    [HttpPost("login_Save_Redis")]
+    public async Task<IActionResult> LoginRedis([FromBody] LoginRequest request, [FromServices] IDistributedCache cache)
     {
         try
         {
