@@ -26,7 +26,6 @@ namespace API_Demo_Authen_Author.Controllers
         [AllowAnonymous]
         public object Login([FromBody] LoginDto userLogin)
         {
-            // Kiểm tra tính hợp lệ của dữ liệu đầu vào
             if (!ModelState.IsValid) return BadRequest(new { message = "Invalid input", errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage) });
 
             // Lấy thông tin người dùng từ DB
@@ -35,28 +34,13 @@ namespace API_Demo_Authen_Author.Controllers
             if (!user.IsEmailVerified) return BadRequest(new { message = "Email is not verified" });
 
             // Xác thực mật khẩu
-            if(!_userService.VerifyPasswordHash(userLogin.PassWord, user.passwordHash, user.passwordSalt))
-                return Unauthorized("Invalid username or password");
+            if (!_userService.VerifyPasswordHash(userLogin.PassWord, user.passwordHash, user.passwordSalt)) return Unauthorized("Invalid username or password");
 
-            try
-            {
-                // Tạo token
-                var token = _tokenService.GenerateToken(user);
+            // Tạo token
+            var token = _tokenService.GenerateToken(user);
+            _tokenService.SaveTokenToRedisAsync(token, user.UserId);      // Lưu token vào Redis với TTL (thời gian sống)
 
-                _tokenService.SaveTokenToRedisAsync(token, user.UserId);      // Lưu token vào Redis với TTL (thời gian sống)
-                _tokenService.UpdateToken(user.UserId, token, "Login", DateTime.Now.AddMinutes(30), false);     // Cập nhật token vào DB
-
-                return Ok(new
-                {
-                    UserName = user.Username,
-                    accessToken = token
-                });
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, new { message = "An error occurred while processing your request", error = ex.Message });
-            }
-
+            return Ok(new { UserName = user.Username, accessToken = token });
         }
 
 
@@ -64,13 +48,7 @@ namespace API_Demo_Authen_Author.Controllers
         [AllowAnonymous]
         public IActionResult Register([FromBody] RegisterDto userRegister)
         {
-            // Kiểm tra tính hợp lệ của dữ liệu đầu vào
             if (!ModelState.IsValid) return BadRequest(new { message = "Invalid input", errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage) });
-
-            // Mã xác thực email
-            var token = Guid.NewGuid().ToString();
-            DateTime tokenExpiry = DateTime.Now.AddMinutes(30);
-            var verificationLink = $"Your token is: {token}\nPlease note that your token will expire in 30 minutes at {tokenExpiry.ToString("HH:mm")}.";
 
             // Kiểm tra email đã tồn tại chưa
             var existingUser = _userService.GetUserByEmail(userRegister.Email);
@@ -78,17 +56,15 @@ namespace API_Demo_Authen_Author.Controllers
 
             //Mã hóa mật khẩu
             _userService.CreatePasswordHash(userRegister.PassWord, out byte[] passwordHash, out byte[] passwordSalt);
-
             // Đăng ký user           
-            bool result = _userService.RegisterUser(token, userRegister, passwordHash, passwordSalt);
-
+            bool result = _userService.RegisterUser(Guid.NewGuid().ToString(), userRegister, passwordHash, passwordSalt);
             if (result == null) return BadRequest("Registration failed.");
 
-            // Gửi email
+            // Mã xác thực email và gửi mail
+            string verificationLink = $"Your token is: {Guid.NewGuid().ToString()}\nPlease note that your token will expire in 30 minutes.";
             bool isEmailSent = _emailService.SendEmail(userRegister.Email, "Email Verification", verificationLink);
 
-            if (isEmailSent) return Ok("Registration successful. Please verify your email.");
-            else return StatusCode(500, "Something went wrong");
+            return isEmailSent ? Ok("Registration successful. Please verify your email.") : StatusCode(500, "Something went wrong");
 
         }
 
@@ -96,9 +72,7 @@ namespace API_Demo_Authen_Author.Controllers
         [AllowAnonymous]
         public IActionResult VerifyEmail([FromBody] VerifyEmailRequest request)
         {
-            // Validate input
-            if (!ModelState.IsValid)
-                return BadRequest(new { message = "Invalid input", errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage) });
+            if (!ModelState.IsValid) return BadRequest(new { message = "Invalid input", errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage) });
 
             // Check email có tồn tại không
             var user = _userService.GetUserByEmail(request.email);
@@ -114,7 +88,6 @@ namespace API_Demo_Authen_Author.Controllers
                 return StatusCode(500, new { message = "Failed to send new token" });
             }
 
-            // Verify token
             if (!_userService.VerifyEmail(request.token, user.UserId, request.email))
                 return BadRequest(new { message = "Email verification failed" });
 
@@ -130,38 +103,25 @@ namespace API_Demo_Authen_Author.Controllers
             var userToChangePass = _userService.GetUserByEmail(request.Email);
             if (userToChangePass == null) return NotFound("User not found!");
 
-            // Tạo mk mới và token 
             var token = Guid.NewGuid().ToString();
-            DateTime tokenExpiry = DateTime.Now.AddMinutes(30);
-            var tokenInfo = $"Your token is: {token}\nPlease note that your token will expire in 30 minutes at {tokenExpiry.ToString("HH:mm")}.";
-            var body = $"{tokenInfo}";
-
-            //lưu token vào DB
             _tokenService.UpdateToken(userToChangePass.UserId, token, "ForgotPassToken", DateTime.Now.AddMinutes(30), false);
 
             // Gửi mail
-            bool isEmailSent =_emailService.SendEmail(userToChangePass.Email, "Email Verification", body);
+            bool isEmailSent = _emailService.SendEmail(userToChangePass.Email, "Email Verification", $"Your token is: {token}\nIt will expire in 30 minutes.");
 
-            if (!isEmailSent) return StatusCode(500, "Failed to send email!");
-
-            return Ok("Password reset successfully. Please check your email.");
+            return isEmailSent ? Ok("Password reset successfully. Please check your email.") : StatusCode(500, "Failed to send email!");
         }
 
         [HttpPost("resetPassword")]
         public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordDto resetPasswordDto)
         {
-            // Kiểm tra đầu vào
-            if (!ModelState.IsValid) 
-                return BadRequest(new { message = "Invalid input", errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage) });
+            if (!ModelState.IsValid) return BadRequest(new { message = "Invalid input", errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage) });
 
-            // Kiểm tra token hợp lệ
             var tokenInfo = _tokenService.GetTokenInfo(resetPasswordDto.UserId, "ForgotPassToken");
             if (tokenInfo == null || tokenInfo.expiredDate < DateTime.UtcNow)
                 return BadRequest(new { message = "Token has expired. Please initiate the Forgot Password process again." });
 
-            // Cập nhật mật khẩu
-            if (_userService.UpdateUserPassword(resetPasswordDto.UserId, resetPasswordDto.NewPassword))
-                return Ok("Password reset successfully.");
+            if (_userService.UpdateUserPassword(resetPasswordDto.UserId, resetPasswordDto.NewPassword)) return Ok("Password reset successfully.");
 
             return BadRequest("Failed to change password.");
         }
@@ -171,14 +131,12 @@ namespace API_Demo_Authen_Author.Controllers
         [Authorize]
         public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordDto request)
         {
-            if(!ModelState.IsValid)
+            if (!ModelState.IsValid)
                 return BadRequest(new { message = "Invalid input", errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage) });
 
-            // Lấy userId từ token JWT
             if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out int userId))
                 return Unauthorized("User is not logged in.");
 
-            // Cập nhật mật khẩu
             if (_userService.UpdateUserPassword(userId, request.newPass))
                 return Ok("Password changed successfully.");
 

@@ -9,5 +9,6 @@ namespace API_Demo_Authen_Author.Services
         bool UpdateToken(int userId, string token, string tokenType, DateTime expiredDate, bool isUsed);
         TokenInfoDto GetTokenInfo(int userId, string tokenType);
         Task SaveTokenToRedisAsync(string token, int userId);
+        Task<string> GetTokenFromRedisAsync(int userId);
     }
 }

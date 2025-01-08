@@ -29,6 +29,7 @@ namespace API_Demo_Authen_Author.Services
         public List<UserDto> FetchUsers()
         {
             using var connection = _dataService.GetConnection();
+
             return connection.Query<UserDto>(
                 "sp_GetAllUsers",
                 commandType: CommandType.StoredProcedure

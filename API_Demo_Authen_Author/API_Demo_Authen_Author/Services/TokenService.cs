@@ -92,6 +92,14 @@ namespace API_Demo_Authen_Author.Services
             };
             await _cache.SetStringAsync(cacheKey, token, cacheOptions);
         }
+        
+        public async Task<string> GetTokenFromRedisAsync(int userId)
+        {
+            // Key định danh token cho user
+            var cacheKey = $"jwt:{userId}"; 
+            var r = await _cache.GetStringAsync(cacheKey);
+            return r;
+        }
 
         public bool UpdateToken(int userId, string token, string tokenType, DateTime expiredDate, bool isUsed)
         {
