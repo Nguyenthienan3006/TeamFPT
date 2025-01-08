@@ -1,7 +1,10 @@
-﻿using API_Demo_Authen_Author.Dto;
+﻿using API_Demo_Authen_Author.DataAccess;
+using API_Demo_Authen_Author.Dto;
+using API_Demo_Authen_Author.Models;
 using API_Demo_Authen_Author.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using MySqlConnector;
 using System.Security.Claims;
 
 namespace API_Demo_Authen_Author.Controllers
@@ -13,12 +16,14 @@ namespace API_Demo_Authen_Author.Controllers
         private readonly ITokenService _tokenService;
         private readonly IUserService _userService;
         private readonly IEmailService _emailService;
+        private readonly DBM _dbm;
 
-        public AuthController(ITokenService tokenService, IUserService userService, IEmailService emailService)
+        public AuthController(ITokenService tokenService, IUserService userService, IEmailService emailService, DBM dbm)
         {
             _tokenService = tokenService;
             _userService = userService;
             _emailService = emailService;
+            _dbm = dbm;
         }
 
         // Admin: Admin@123, Thien An: Ann@3006
@@ -40,9 +45,11 @@ namespace API_Demo_Authen_Author.Controllers
             var token = _tokenService.GenerateToken(user);
             _tokenService.SaveTokenToRedisAsync(token, user.UserId);      // Lưu token vào Redis với TTL (thời gian sống)
 
+            // Sử dụng DMB để ghi log mỗi khi người dùng đăng nhập
+            _dbm.InsertLoginLog(user.UserId);
+
             return Ok(new { UserName = user.Username, accessToken = token });
         }
-
 
         [HttpPost("register")]
         [AllowAnonymous]

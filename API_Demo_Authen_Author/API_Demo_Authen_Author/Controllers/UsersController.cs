@@ -50,5 +50,6 @@ namespace API_Demo_Authen_Author.Controllers
             var users = _userService.FetchUsers();
             return Ok(users);
         }
+
     }
 }
