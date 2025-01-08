@@ -18,8 +18,7 @@ namespace Project_Swagger.Services
             _configuration = config;
         }
 
-
-        public string GenerateToken(User user)
+        public string GenerateToken(Account account)
         {
             var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["Jwt:Key"]));
             var credentials = new SigningCredentials(securityKey, SecurityAlgorithms.HmacSha256);
@@ -27,9 +26,9 @@ namespace Project_Swagger.Services
             {
                 Subject = new ClaimsIdentity(new[]
                 {
-                    new Claim(ClaimTypes.NameIdentifier, user.Username),
-                    new Claim(ClaimTypes.Email, user.Email),
-                    new Claim(ClaimTypes.Role, user.Role)
+                    new Claim(ClaimTypes.NameIdentifier, account.Username),
+                    new Claim(ClaimTypes.Email, account.User.Email),
+                    new Claim(ClaimTypes.Role, account.User.Role)
                 }),
                 Issuer = _configuration["Jwt:Issuer"],
                 Expires = DateTime.Now.AddMinutes(_configuration.GetValue<int>("Jwt:TokenValidityMins")),
@@ -44,28 +43,12 @@ namespace Project_Swagger.Services
             return accessToken;
         }
 
-        public User Authenticate(UserDTO userLogin)
+        public Account Authenticate(UserDTO userLogin)
         {
-            var currentUser = _userService.GetAnUser(userLogin.UserName, userLogin.PassWord);
-            if (currentUser.IsEmailVerified == false)
-            {
-                return null;
-            }
-            if (currentUser != null)
-            {
-                return currentUser;
-            }
-            return null;
+            var currentUser = _userService.GetAnUserAccount(userLogin.UserName, userLogin.PassWord);
+            if (currentUser == null) return null;
+            if (currentUser.IsVerify == false) return null;
+            return currentUser;
         }
-
-        public bool IsValidPassword(UserRegisterDTO userRegister)
-        {
-            if (!userRegister.Password.Equals(userRegister.Repassword))
-            {
-                return false;
-            }
-            return true;
-        }
-        
     }
 }

@@ -2,11 +2,11 @@
 
 namespace Project_Swagger.DTO
 {
-    public class UserChangerPasswordDTO
+    public class VerifyEmailDTO
     {
-        [Required(ErrorMessage = "Must enter password")]
-        [StringLength(255, ErrorMessage = "Invalid password")]
-        public string Password { get; set; }
+        [Required(ErrorMessage = "Must enter email")]
+        [StringLength(50, ErrorMessage = "Invalid email")]
+        public string Email { get; set; }
 
         [Required(ErrorMessage = "Must enter OTP")]
         [StringLength(7, ErrorMessage = "Invalid OTP")]

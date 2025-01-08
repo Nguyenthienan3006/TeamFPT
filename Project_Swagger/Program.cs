@@ -9,8 +9,7 @@ var builder = WebApplication.CreateBuilder(args);
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
 //builder.WebHost.UseUrls("http://+:5000");
 
-
-
+RedisService.Connect("localhost:6379");
 // Add services to the container
 //=========================================================================================
 builder.Services.AddControllers();

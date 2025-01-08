@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Project_Swagger.DTO;
+using Project_Swagger.Models;
 using Project_Swagger.Services;
 
 namespace Project_Swagger.Controllers
@@ -24,58 +25,69 @@ namespace Project_Swagger.Controllers
         [AllowAnonymous]
         public IActionResult Login([FromBody] UserDTO userLogin)
         {
-            var user = _authService.Authenticate(userLogin);
+            if (!ModelState.IsValid) return BadRequest(ModelState);
+            string cachedToken = RedisService.GetAccessToken(userLogin.UserName);
+            if (!string.IsNullOrEmpty(cachedToken)) return Ok(new { token = cachedToken });
 
-            if (user != null)
-            {
-                var token = _authService.GenerateToken(user);
-                return Ok(token);
-            }
+            Account user = _authService.Authenticate(userLogin);
+            if (user == null) return NotFound("User not exist or not verify");
 
-            return NotFound("User not exist or not verify");
+            string token = _authService.GenerateToken(user);
+            RedisService.SetAccessToken(user.Id, token, TimeSpan.FromMinutes(5));
+
+            return Ok(new { token });            
+        }
+
+        [HttpGet("get-token/{username}")]
+        public IActionResult GetToken(string username)
+        {
+            string redisKey = username;
+            string token = RedisService.GetAccessToken(redisKey);
+            if (string.IsNullOrEmpty(token)) return NotFound("Token not found.");
+            return Ok(new { Token = token });
+        }
+
+        [HttpDelete("delete-token/{username}")]
+        public IActionResult DeleteToken(string username)
+        {
+            string redisKey = username;
+            RedisService.DeleteAccessToken(redisKey);
+            return Ok("Token deleted.");
         }
 
         [HttpPost("Register")]
         [AllowAnonymous]
         public IActionResult Register([FromBody] UserRegisterDTO userRegister)
         {
-            if (!_authService.IsValidPassword(userRegister))
-            {
-                return UnprocessableEntity();
-            }
+            if (!ModelState.IsValid) return BadRequest(ModelState);
+            if (userRegister == null) return BadRequest();
+            if (!_userService.RegisterUser(userRegister)) return Conflict();
 
-            if (userRegister != null)
-            {
-                bool action = _userService.AddAnUser(userRegister);
-                if (action == false)
-                {
-                    return Conflict();
-                }
-            }
+            var verificationLink = Url.Action("ConfirmEmail", "Account", new { Email = userRegister.Email , OTP = userRegister.OTP }, Request.Scheme);
+            _emailService.SendEmailAsync(userRegister.Email, "Your code", userRegister.OTP);
             
-            var verificationCode = userRegister.OTP;
-            var user = _userService.GetUserByEmail(userRegister.Email);
-            if (user != null)
-            {
-
-                var verificationLink = Url.Action("ConfirmEmail", "Account", new { userId = user.UserId, token = verificationCode }, Request.Scheme);
-
-                _emailService.SendEmailAsync(user.Email, "Your code", verificationCode);
-            }
             return Ok(new { Message = "Registration successful. Please check your email for the verification code." });
         }
 
         [HttpPost("Verify")]
         [AllowAnonymous]
-        public IActionResult Verify([FromBody] string otp)
+        public IActionResult Verify([FromBody] VerifyEmailDTO verifyEmailDTO)
         {
-            var user = _userService.GetUserByOTP(otp);
-            if (user != null)
-            {
-                bool result = _userService.UpdateEmailVerified(user.UserId);
-                return Ok(result);
-            }
+            if (!ModelState.IsValid) return BadRequest(ModelState);
+            if (_userService.VerifyAccount(verifyEmailDTO.OTP, verifyEmailDTO.Email)) return Ok();
             return BadRequest();
+        }
+        
+        [HttpPost("Resend-OTP")]
+        [AllowAnonymous]
+        public IActionResult Resend([FromBody] ResendOTPDTO resendOTPDTO)
+        {
+            if (!ModelState.IsValid) return BadRequest(ModelState);
+            
+            var verificationLink = Url.Action("ConfirmEmail", "Account", new { Email = resendOTPDTO.email, OTP = resendOTPDTO.OTP }, Request.Scheme);
+            _emailService.SendEmailAsync(resendOTPDTO.email, "Your code", resendOTPDTO.OTP);
+            if (!_userService.ResendOTP(resendOTPDTO)) return BadRequest();
+            return Ok("Success");
         }
     }
 }

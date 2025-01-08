@@ -27,27 +27,13 @@ namespace Project_Swagger.Controllers
         public IActionResult ChangePassword()
         {
             string email = User?.FindFirstValue(ClaimTypes.Email);
-            if (email == null)
-            {
-                return BadRequest("Email not exist");
-            }
+            if (email == null) return BadRequest("Email not exist or need to login again");
+            ResendOTPDTO resendOTPDTO = new ResendOTPDTO();
+            resendOTPDTO.email = email;
+            if (!_userService.ResendOTP(resendOTPDTO)) return BadRequest("Unsuccess");
 
-            var verificationCode = Guid.NewGuid().ToString();
-            var user = _userService.GetUserByEmail(email);
-            bool result = _userService.UpdateUserOTP(user.UserId, verificationCode);
-
-            if (!result)
-            {
-                return BadRequest();
-            }
-
-            if (user != null)
-            {
-
-                var verificationLink = Url.Action("ConfirmEmail", "Account", new { userId = user.UserId, token = verificationCode }, Request.Scheme);
-
-                _emailService.SendEmailAsync(user.Email, "Your code", verificationCode);
-            }
+            var verificationLink = Url.Action("ConfirmEmail", "Account", new { Email = email, OTP = resendOTPDTO.OTP }, Request.Scheme);
+            _emailService.SendEmailAsync(resendOTPDTO.email, "Your code", resendOTPDTO.OTP);
             return Ok("Please check your email for the verification code.");
         }
 
@@ -55,22 +41,11 @@ namespace Project_Swagger.Controllers
         [Authorize]
         public IActionResult InputPassword([FromBody] UserChangerPasswordDTO userChangerPasswordDTO)
         {
-            if (!_userService.IsValidChangePassword(userChangerPasswordDTO))
-            {
-                return BadRequest("Password not valid");
-            }
-
             string email = User?.FindFirstValue(ClaimTypes.Email);
-            bool result = _userService.UpdatePassword(userChangerPasswordDTO, email);
-
-            if (!result)
-            {
-                return BadRequest("Unsuccessfully");
-            }
+            if (email == null) return BadRequest("Email not exist or need to login again");
+            if (!_userService.ChangePassword(userChangerPasswordDTO, email)) return BadRequest("Unsuccessfully");
             return Ok("Password change page");
         }
-
-
 
         // GET: api/<UserController>
         [HttpGet("Admin")]
@@ -78,16 +53,8 @@ namespace Project_Swagger.Controllers
         public async Task<ActionResult<IEnumerable<User>>> AdminGetInf()
         {
             var _user = User?.FindFirstValue(ClaimTypes.NameIdentifier);
-
-            if (_user.IsNullOrEmpty())
-            {
-                return Unauthorized("User not authenticated.");
-            }
-
-            if (_user == null)
-            {
-                return NotFound("User not found.");
-            }
+            if (_user.IsNullOrEmpty()) return Unauthorized("User not authenticated.");
+            if (_user == null) return NotFound("User not found.");
 
             return Ok(new
             {
@@ -102,16 +69,8 @@ namespace Project_Swagger.Controllers
         public async Task<ActionResult<IEnumerable<User>>> UserGetInf()
         {
             var _user = User?.FindFirstValue(ClaimTypes.NameIdentifier);
-
-            if (_user.IsNullOrEmpty())
-            {
-                return Unauthorized("User not authenticated.");
-            }
-
-            if (_user == null)
-            {
-                return NotFound("User not found.");
-            }
+            if (_user.IsNullOrEmpty()) return Unauthorized("User not authenticated.");
+            if (_user == null) return NotFound("User not found.");
 
             return Ok(new
             {
@@ -126,7 +85,6 @@ namespace Project_Swagger.Controllers
         public async Task<ActionResult<User>> Public()
         {
             var _user = "Must login";
-
             return Ok(_user);
         }
     }

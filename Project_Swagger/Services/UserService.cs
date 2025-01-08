@@ -9,301 +9,170 @@ namespace Project_Swagger.Services
     public class UserService
     {
         private readonly MySqlConnectionService _connectionService;
-
         public UserService(MySqlConnectionService connectionService)
         {
             _connectionService = connectionService;
         }
 
-        public User GetAnUser(string username, string password)
+        public Account GetAnUserAccount(string username, string password)
         {
             using var connection = _connectionService.GetConnection();
+            if (username.IsNullOrEmpty()) return null;
+            if (connection.State != ConnectionState.Open) connection.Open();
+            using var command = connection.CreateCommand();
+            command.CommandText = "FindUserAccount";
+            command.CommandType = CommandType.StoredProcedure;
 
-            if (connection.State == ConnectionState.Closed)
+            command.Parameters.Add(new MySqlParameter("p_username", MySqlDbType.VarChar) { Value = username });
+            using var reader = command.ExecuteReader();
+
+            if (reader.Read())
             {
-                connection.Open();
-            }
-
-            if (!username.IsNullOrEmpty())
-            {
-                using var command = connection.CreateCommand();
-                command.CommandText = "FindUser";
-                command.CommandType = CommandType.StoredProcedure;
-
-                command.Parameters.Add(new MySqlParameter("p_field", MySqlDbType.VarChar) { Value = "username" });
-                command.Parameters.Add(new MySqlParameter("p_value", MySqlDbType.VarChar) { Value = username });
-
-                using var reader = command.ExecuteReader();
-
-                if (reader.Read())
+                if (password.Equals(reader["password_hash"].ToString()))
                 {
-
-                    if (password.Equals(reader["Password"].ToString()))
+                    return new Account
                     {
-                        return new User
+                        Username = reader["Username"].ToString(),
+                        IsVerify = Convert.ToBoolean(reader["IsVerify"]),
+                        User = new User
                         {
-                            UserId = Convert.ToInt32(reader["user_id"]),
-                            Username = reader["Username"].ToString(),
-                            Fullname = reader["Fullname"].ToString(),
                             Email = reader["Email"].ToString(),
-                            Role = reader["Role"].ToString(),
-                            IsEmailVerified = Convert.ToBoolean(reader["isEmailVerified"])
-                        };
+                            Role = reader["Role"].ToString()
+                        }
+                    };
+                }
+            }
+            return null;
+        }
+
+        public bool RegisterUser(UserRegisterDTO userRegisterDTO)
+        {
+            using (var connection = _connectionService.GetConnection())
+            {
+                try
+                {
+                    connection.Open();
+                    using (var command = connection.CreateCommand())
+                    {
+                        command.CommandText = "RegisterUser";
+                        command.CommandType = CommandType.StoredProcedure;
+                        command.Parameters.Add(new MySqlParameter("p_username", MySqlDbType.VarChar) { Value = userRegisterDTO.UserName });
+                        command.Parameters.Add(new MySqlParameter("p_fullname", MySqlDbType.VarChar) { Value = userRegisterDTO.Fullname });
+                        command.Parameters.Add(new MySqlParameter("p_password", MySqlDbType.VarChar) { Value = userRegisterDTO.Password });
+                        command.Parameters.Add(new MySqlParameter("p_email", MySqlDbType.VarChar) { Value = userRegisterDTO.Email });
+                        command.Parameters.Add(new MySqlParameter("p_role", MySqlDbType.VarChar) { Value = userRegisterDTO.Role });
+                        command.Parameters.Add(new MySqlParameter("p_type_code", MySqlDbType.VarChar) { Value = userRegisterDTO.TypeCode });
+                        command.Parameters.Add(new MySqlParameter("p_otp_code", MySqlDbType.VarChar) { Value = userRegisterDTO.OTP });
+                        command.ExecuteNonQuery();
+
+                        return true;
                     }
                 }
+                catch (Exception ex)
+                {
+                    return false;
+                }
             }
-
-            if (connection.State == ConnectionState.Open)
-            {
-                connection.Close();
-            }
-            return null;
         }
 
-        public User GetUserByEmail(string email)
+        public bool VerifyAccount(string otp, string email)
         {
-            using var connection = _connectionService.GetConnection();
-
-            if (connection.State == ConnectionState.Closed)
+            using (var connection = _connectionService.GetConnection())
             {
-                connection.Open();
-            }
-
-            if (!email.IsNullOrEmpty())
-            {
-                using var command = connection.CreateCommand();
-                command.CommandText = "FindUser";
-                command.CommandType = CommandType.StoredProcedure;
-
-                command.Parameters.Add(new MySqlParameter("p_field", MySqlDbType.VarChar) { Value = "email" });
-                command.Parameters.Add(new MySqlParameter("p_value", MySqlDbType.VarChar) { Value = email });
-
-                using var reader = command.ExecuteReader();
-
-                if (reader.Read())
-                {
-                    return new User
+                
+                    connection.Open();
+                    using (var command = connection.CreateCommand())
                     {
-                        UserId = Convert.ToInt32(reader["user_id"]),
-                        Username = reader["Username"].ToString(),
-                        Fullname = reader["Fullname"].ToString(),
-                        Email = reader["Email"].ToString(),
-                        Role = reader["Role"].ToString()
-                    };
-                }
-            }
+                        command.CommandText = "VerifyEmail";
+                        command.CommandType = CommandType.StoredProcedure;
+                        command.Parameters.Add(new MySqlParameter("p_email", MySqlDbType.VarChar) { Value = email });
+                        command.Parameters.Add(new MySqlParameter("p_otp", MySqlDbType.VarChar) { Value = otp });
+                        var outParam = new MySqlParameter("o_status", MySqlDbType.Int32)
+                        {
+                            Direction = ParameterDirection.Output
+                        };
+                        command.Parameters.Add(outParam);
+                        command.ExecuteNonQuery();
+                        return Convert.ToBoolean(outParam.Value);
+                    }
+                
 
-            if (connection.State == ConnectionState.Open)
-            {
-                connection.Close();
             }
-            return null;
         }
 
-        public bool AddAnUser(UserRegisterDTO userRegisterDTO)
+        public bool ResendOTP(ResendOTPDTO resendOTPDTO)
         {
-            bool result = false;
-            using var connection = _connectionService.GetConnection();
-
-            if (connection.State == ConnectionState.Closed)
+            using (var connection = _connectionService.GetConnection())
             {
-                connection.Open();
-            }
-
-            using var command = connection.CreateCommand();
-            command.CommandText = "UserRegister";
-            command.CommandType = CommandType.StoredProcedure;
-
-            command.Parameters.Add(new MySqlParameter("p_username", MySqlDbType.VarChar) { Value = userRegisterDTO.UserName });
-            command.Parameters.Add(new MySqlParameter("p_password", MySqlDbType.VarChar) { Value = userRegisterDTO.Password });
-            command.Parameters.Add(new MySqlParameter("p_fullname", MySqlDbType.VarChar) { Value = userRegisterDTO.Fullname });
-            command.Parameters.Add(new MySqlParameter("p_email", MySqlDbType.VarChar) { Value = userRegisterDTO.Email });
-            command.Parameters.Add(new MySqlParameter("p_role", MySqlDbType.VarChar) { Value = userRegisterDTO.Role });
-            command.Parameters.Add(new MySqlParameter("p_mailStatus", MySqlDbType.Bit) { Value = userRegisterDTO.IsEmailVerified });
-            command.Parameters.Add(new MySqlParameter("p_otp", MySqlDbType.VarChar) { Value = userRegisterDTO.OTP });
-            
-
-            // Thêm tham số OUT để lấy kết quả
-            var statusParam = new MySqlParameter("p_status", MySqlDbType.Bit)
-            {
-                Direction = ParameterDirection.Output
-            };
-            command.Parameters.Add(statusParam);
-
-            command.ExecuteNonQuery();
-
-            result = Convert.ToBoolean(statusParam.Value);
-
-            if (connection.State == ConnectionState.Open)
-            {
-                connection.Close();
-            }
-            return result;
-        }
-
-        public User GetUserByOTP(string otp)
-        {
-            using var connection = _connectionService.GetConnection();
-
-            if (connection.State == ConnectionState.Closed)
-            {
-                connection.Open();
-            }
-
-            if (!otp.IsNullOrEmpty())
-            {
-                using var command = connection.CreateCommand();
-                command.CommandText = "FindUserByOTP";
-                command.CommandType = CommandType.StoredProcedure;
-
-                command.Parameters.Add(new MySqlParameter("otpC", MySqlDbType.VarChar) { Value = otp });
-
-                using var reader = command.ExecuteReader();
-
-                if (reader.Read())
+                try
                 {
-                    return new User
+                    connection.Open();
+                    using (var command = connection.CreateCommand())
                     {
-                        UserId = Convert.ToInt32(reader["user_id"]),
-                        IsEmailVerified = Convert.ToBoolean(reader["isEmailVerified"])
-                    };
+                        command.CommandText = "ResendOTP";
+                        command.CommandType = CommandType.StoredProcedure;
+                        command.Parameters.Add(new MySqlParameter("p_email", MySqlDbType.VarChar) { Value = resendOTPDTO.email });
+                        command.Parameters.Add(new MySqlParameter("p_otp", MySqlDbType.VarChar) { Value = resendOTPDTO.OTP });
+                        command.Parameters.Add(new MySqlParameter("p_type_code", MySqlDbType.VarChar) { Value = resendOTPDTO.TypeCode });
+                        command.ExecuteNonQuery();
+                        return true;
+                    }
                 }
-            }
-
-            if (connection.State == ConnectionState.Open)
-            {
-                connection.Close();
-            }
-            return null;
-        }
-
-        public bool UpdateEmailVerified(int userId)
-        {
-            bool result = false;
-
-            using var connection = _connectionService.GetConnection();
-
-            if (connection.State == ConnectionState.Closed)
-            {
-                connection.Open();
-            }
-
-            using var command = connection.CreateCommand();
-            command.CommandText = "UpdateEmailVerified";
-            command.CommandType = CommandType.StoredProcedure;
-
-            command.Parameters.Add(new MySqlParameter("userId", MySqlDbType.Int32) { Value = userId });
-
-            var statusParam = new MySqlParameter("status", MySqlDbType.Byte)
-            {
-                Direction = ParameterDirection.Output
-            };
-            command.Parameters.Add(statusParam);
-
-            try
-            {
-                command.ExecuteNonQuery();
-                result = Convert.ToBoolean(statusParam.Value); 
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine(ex.Message);
-            }
-            finally
-            {
-                if (connection.State == ConnectionState.Open)
+                catch (Exception ex)
                 {
-                    connection.Close();
+                    return false;
                 }
             }
-
-            return result;
         }
-
-        public bool UpdateUserOTP(int userId, string otp)
+        
+        public bool PasswordOTP(ChangePasswordDTO changePasswordDTO)
         {
-            bool result = false;
-            using var connectoin = _connectionService.GetConnection();
-
-            if( connectoin.State == ConnectionState.Closed) { connectoin.Open(); }
-
-            using var command = connectoin.CreateCommand();
-            command.CommandText = "UpdateOTP";
-            command.CommandType= CommandType.StoredProcedure;
-
-            command.Parameters.Add(new MySqlParameter("p_user_id", MySqlDbType.Int32) { Value = userId });
-            command.Parameters.Add(new MySqlParameter("p_otp", MySqlDbType.VarChar) { Value = otp });
-
-            try
+            using (var connection = _connectionService.GetConnection())
             {
-                command.ExecuteNonQuery();
-                result = true;
-            }
-            catch (Exception ex) 
-            { 
-                result = false; 
-            }
-            finally
-            {
-                if (connectoin.State == ConnectionState.Open) { connectoin.Close(); }
-            }
-
-            return result;
-        }
-
-        public bool UpdatePassword(UserChangerPasswordDTO userChangerPasswordDTO, string email)
-        {
-            bool result = false;
-
-            using var connection = _connectionService.GetConnection();
-
-            if (connection.State == ConnectionState.Closed)
-            {
-                connection.Open();
-            }
-
-            using var command = connection.CreateCommand();
-            command.CommandText = "UpdatePassword"; 
-            command.CommandType = CommandType.StoredProcedure;
-
-            command.Parameters.Add(new MySqlParameter("p_password", MySqlDbType.VarChar) { Value = userChangerPasswordDTO.Password });
-            command.Parameters.Add(new MySqlParameter("p_otp", MySqlDbType.VarChar) { Value = userChangerPasswordDTO.OTP });
-            command.Parameters.Add(new MySqlParameter("email", MySqlDbType.VarChar) { Value = email });
-
-            var statusParam = new MySqlParameter("status", MySqlDbType.Byte)
-            {
-                Direction = ParameterDirection.Output
-            };
-            command.Parameters.Add(statusParam);
-
-            try
-            {
-                command.ExecuteNonQuery();
-                result = Convert.ToBoolean(statusParam.Value);
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Error updating password: {ex.Message}");
-                result = false;
-            }
-            finally
-            {
-                if (connection.State == ConnectionState.Open)
+                try
                 {
-                    connection.Close();
+                    connection.Open();
+                    using (var command = connection.CreateCommand())
+                    {
+                        command.CommandText = "ResendOTP";
+                        command.CommandType = CommandType.StoredProcedure;
+                        command.Parameters.Add(new MySqlParameter("p_email", MySqlDbType.VarChar) { Value = changePasswordDTO.email });
+                        command.Parameters.Add(new MySqlParameter("p_otp", MySqlDbType.VarChar) { Value = changePasswordDTO.OTP });
+                        command.Parameters.Add(new MySqlParameter("p_type_code", MySqlDbType.VarChar) { Value = changePasswordDTO.TypeCode });
+                        command.ExecuteNonQuery();
+                        return true;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    return false;
                 }
             }
-
-            return result;
         }
 
-        public bool IsValidChangePassword(UserChangerPasswordDTO userRegister)
+        public bool ChangePassword(UserChangerPasswordDTO userChangerPasswordDTO, string email)
         {
-            if (!userRegister.Password.Equals(userRegister.Repassword))
+            using (var connection = _connectionService.GetConnection())
             {
-                return false;
+                try
+                {
+                    connection.Open();
+                    using (var command = connection.CreateCommand())
+                    {
+                        command.CommandText = "ChangePassword";
+                        command.CommandType = CommandType.StoredProcedure;
+                        command.Parameters.Add(new MySqlParameter("p_email", MySqlDbType.VarChar) { Value = email });
+                        command.Parameters.Add(new MySqlParameter("p_otp", MySqlDbType.VarChar) { Value = userChangerPasswordDTO.OTP });
+                        command.Parameters.Add(new MySqlParameter("p_password", MySqlDbType.VarChar) { Value = userChangerPasswordDTO.Password });
+                        command.ExecuteNonQuery();
+                        return true;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    return false;
+                }
             }
-            return true;
         }
     }
 }
