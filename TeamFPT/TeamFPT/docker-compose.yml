@@ -1,5 +1,5 @@
 ﻿services:
- api:
+  api:
     build:
       context: .
     ports:
@@ -13,11 +13,12 @@
     networks:
       - app-network
 
- db:
+  db:
     image: mysql:8.0.40-debian
     ports:
       - "3366:3306"
     environment:
+      MYSQL_ROOT_PASSWORD: your_root_password_here
       MYSQL_USER: dev
       MYSQL_PASSWORD: 123abc@A
       MYSQL_DATABASE: hunghb_db

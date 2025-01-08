@@ -17,6 +17,7 @@ namespace TeamFPT
             builder.Services.AddScoped<JwtTokenGenerator>();
             builder.Services.AddScoped<UserRepository>();
             builder.Services.AddScoped<EmailService>();
+            builder.Services.AddScoped<RedisServices>();
             builder.Services.AddControllers();
 
             
@@ -69,10 +70,15 @@ namespace TeamFPT
                      };
                  }
                  );
+            builder.Services.AddStackExchangeRedisCache(options =>
+            {
+                options.Configuration = "localhost:6379"; // Chuỗi kết nối Redis
+                options.InstanceName = "JwtTokenCache:"; // Tiền tố cho các key trong Redis
+            });
+
             builder.Services.AddAuthorization();
             var app = builder.Build();
-
-
+            
             if (app.Environment.IsDevelopment())
             {
                 app.UseSwagger();

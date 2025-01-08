@@ -21,41 +21,33 @@ namespace TeamFPT.Controllers
         private readonly IConfiguration _configuration;
         private readonly JwtTokenGenerator _jwtTokenGenerator;
         private readonly EmailService _emailService;
+        private readonly RedisServices _redisServices;
 
-        public AuthController(UserRepository userRepositories, IConfiguration configuration, JwtTokenGenerator jwtTokenGenerator, EmailService emailService)
+        public AuthController(UserRepository userRepositories, IConfiguration configuration, JwtTokenGenerator jwtTokenGenerator, EmailService emailService, RedisServices redisServices)
         {
             _userRepositories = userRepositories;
             _configuration = configuration;
             _jwtTokenGenerator = jwtTokenGenerator;
             _emailService = emailService;
+            _redisServices = redisServices;
         }
-        
+
         [HttpPost("login")]
-        public IActionResult Login([FromBody] LoginUserRequest request)
+        public async Task<IActionResult> Login([FromBody] LoginUserRequest request, [FromServices] RedisServices redisServices)
         {
             var userAuth = _userRepositories.Login(request.Username, request.Password);
             if (userAuth == null) return Unauthorized("Invalid credentials.");
             var token = _jwtTokenGenerator.GenerateToken(userAuth);
+            await redisServices.SaveTokenToRedisAsync(token, userAuth.UserId);
             if (!userAuth.IsVerified)
             {
                 var otp = _userRepositories.GenerateOtp();
                 _userRepositories.SaveOtp(userAuth.Email, otp);
                 _emailService.SendOtpEmailAsync(userAuth.Email, otp);
                 return Unauthorized("You must verify this account");
-                
             }
-            return Ok(new
-            {
-                token,
-                user = new
-                {
-                    userAuth.Username,
-                    userAuth.Email,
-                    userAuth.UserRole,
-                    userAuth.User.FirstName,
-                    userAuth.User.LastName
-                }
-            });
+
+            return Ok(new { token });
         }
 
         [HttpPost("register")]
