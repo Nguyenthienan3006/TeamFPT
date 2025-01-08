@@ -41,46 +41,35 @@ public class AuthController : ControllerBase
         };
 
         _userStore.AddUser(user);
-        var otp = _userStore.GenerateOtp(user.Id);
-        _emailService.SendEmail(user.Email, "Reset Password OTP", $"Your OTP is: {otp}");
 
         return Ok("User registered successfully.");
     }
 
-    [HttpPost("verify_email")]
-    public IActionResult VerifyEmail([FromBody] VerifyRequest request)
+    [HttpPost("send-email-verification-otp")]
+    public IActionResult SendEmailVerificationOtp([FromBody] EmailVerificationRequest request)
     {
-        var user = _userStore.GetUserByUsername(request.Username);
+        var user = _userStore.GetUserByEmail(request.Email);
         if (user == null) return NotFound("User not found.");
 
-        var isValidOtp = _userStore.ValidateOtp(user.Id, request.Otp);
-        if (!isValidOtp) return BadRequest("Invalid or expired OTP.");
-
-        return Ok();
+        _userStore.GenerateEmailVerificationOtp(user.Id);
+        return Ok("OTP sent for email verification.");
     }
-    [HttpPost("login_Save_DB")]
-    public async Task<IActionResult> Login([FromBody] LoginRequest request, [FromServices] IDistributedCache cache)
+
+
+    [HttpPost("verify-email")]
+    public IActionResult VerifyEmail([FromBody] VerifyEmailRequest request)
     {
-        try
-        {
-            var existingUser = _userStore.GetUserByUsername(request.Username);
-            if (existingUser == null) return Unauthorized("Invalid username or password.");
 
-            if (!BCrypt.Net.BCrypt.Verify(request.Password, existingUser.Password)) return Unauthorized("Invalid username or password.");
+        var user = _userStore.GetUserByEmail(request.Email);
+        if (_userStore.IsEmailVerified(user.Id)) return BadRequest("Email is already verified.");
+        
+        if (user == null) return NotFound("User not found.");
 
-            var token = GenerateJwtToken(existingUser);
+        if (!_userStore.ValidateOtp(user.Id, request.Otp, "verify_email"))
+            return BadRequest("Invalid or expired OTP.");
 
-            // Lưu token vào Redis
-            _userStore.SaveToken(existingUser.Id, token);
-
-            return Ok(new { Token = token });
-        }
-        catch (Exception ex)
-        {
-
-            Console.WriteLine($"Error in Login: {ex.Message}");
-            return StatusCode(500, "An error occurred while processing your request.");
-        }
+        _userStore.MarkEmailAsVerified(user.Id);
+        return Ok("Email has been verified.");
     }
 
 
@@ -158,7 +147,7 @@ public class AuthController : ControllerBase
         var user = _userStore.GetUserByUsername(request.Username);
         if (user == null) return NotFound("User not found.");
            
-        var isValidOtp = _userStore.ValidateOtp(user.Id, request.Otp);
+        var isValidOtp = _userStore.ValidateOtp(user.Id, request.Otp, "chage_password");
         if (!isValidOtp) return BadRequest("Invalid or expired OTP.");
             
         string pw = BCrypt.Net.BCrypt.HashPassword(request.NewPassword);

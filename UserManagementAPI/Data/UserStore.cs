@@ -11,7 +11,7 @@ namespace UserManagementAPI.Data;
 public class UserStore
 {
     private readonly string _connectionString;
-
+    
     public UserStore(IConfiguration configuration)
     {
         _connectionString = configuration.GetConnectionString("DefaultConnection");
@@ -79,6 +79,31 @@ public class UserStore
         return null;
     }
 
+    public User? GetUserByEmail(string email)
+    {
+        using var connection = new MySqlConnection(_connectionString);
+        connection.Open();
+
+        var command = new MySqlCommand("CALL sp_GetUserByUserEmail(@email);", connection);
+        command.Parameters.AddWithValue("@email", email);
+
+        using var reader = command.ExecuteReader();
+        if (reader.Read())
+        {
+            return new User
+            {
+                Id = reader.GetInt32("user_id"),
+                Username = reader.GetString("username"),
+                Password = reader.GetString("password"),
+                Email = reader.GetString("email"),
+                Role = reader.GetString("role")
+            };
+        }
+
+        return null;
+    }
+
+
 
     public string GenerateOtp(int userId)
     {
@@ -97,30 +122,58 @@ public class UserStore
         return otp;
     }
 
-
-
-
-    public bool ValidateOtp(int userId, string otp)
+    public void GenerateEmailVerificationOtp(int userId)
     {
+        var otp = GenerateOtp(userId); // Hàm sinh OTP
         using var connection = new MySqlConnection(_connectionString);
         connection.Open();
-        //sp_ValidateOTP
-        using var command = new MySqlCommand("sp_ValidateOTP", connection )
+        //sp_
+        using var command = new MySqlCommand("sp_UpdateOTPVerifyEmail", connection)
         {
             CommandType = System.Data.CommandType.StoredProcedure
-        };
-        command.Parameters.AddWithValue("p_user_id", userId); 
+        }; 
+        command.Parameters.AddWithValue("p_user_id", userId);
         command.Parameters.AddWithValue("p_otp", otp);
+        command.ExecuteNonQuery();
+    }
 
-        using var reader = command.ExecuteReader();
-        if (reader.Read())
+
+    public bool ValidateOtp(int userId, string otp, string type)
+    {
+        try
         {
-            var tokenId = reader.GetInt32("id");
-            MarkOtpAsUsed(tokenId);
-            return true;
-        }
+            using var connection = new MySqlConnection(_connectionString);
+            connection.Open();
 
-        return false;
+            // Gọi stored procedure sp_ValidateOTP
+            using var command = new MySqlCommand("sp_ValidateOTP", connection)
+            {
+                CommandType = System.Data.CommandType.StoredProcedure
+            };
+            command.Parameters.AddWithValue("p_user_id", userId);
+            command.Parameters.AddWithValue("p_otp", otp);
+            command.Parameters.AddWithValue("p_type", type);
+
+            using var reader = command.ExecuteReader();
+            if (reader.Read())
+            {
+                var tokenId = reader.GetInt32("id");
+
+                // Đánh dấu OTP là đã sử dụng
+                MarkOtpAsUsed(tokenId);
+
+                return true;
+            }
+
+            // Không tìm thấy OTP hợp lệ
+            return false;
+        }
+        catch (Exception ex)
+        {
+            // Ghi log lỗi hoặc xử lý ngoại lệ
+            Console.WriteLine($"Error validating OTP: {ex.Message}");
+            return false;
+        }
     }
 
     public void SaveToken(int userId, string token)
@@ -136,12 +189,19 @@ public class UserStore
     }
     private void MarkOtpAsUsed(int tokenId)
     {
-        using var connection = new MySqlConnection(_connectionString);
-        connection.Open();
+        try
+        {
+            using var connection = new MySqlConnection(_connectionString);
+            connection.Open();
 
-        using var command = new MySqlCommand("sp_IsUseOTP", connection) { CommandType = System.Data.CommandType.StoredProcedure };
-        command.Parameters.AddWithValue("p_id", tokenId);
-        command.ExecuteNonQuery();
+            using var command = new MySqlCommand("sp_IsUseOTP", connection) { CommandType = System.Data.CommandType.StoredProcedure };
+            command.Parameters.AddWithValue("p_id", tokenId);
+            command.ExecuteNonQuery();
+        }
+        catch (Exception ex) 
+        {
+            Console.WriteLine($"Error marking OTP as used: {ex.Message}");
+        }
     }
 
     public void UpdatePassword(int userId, string newPassword)
@@ -184,7 +244,25 @@ public class UserStore
         return users;
     }
 
+    public void MarkEmailAsVerified(int userId)
+    {
+        using var connection = new MySqlConnection(_connectionString);
+        connection.Open();
 
+        using var command = new MySqlCommand("UPDATE Users SET isEmailVerified = 1 WHERE id = @user_Id", connection);
+        command.Parameters.AddWithValue("@user_Id", userId);
+        command.ExecuteNonQuery();
+    }
 
+    public bool IsEmailVerified(int userId)
+    {
+        using var connection = new MySqlConnection(_connectionString);
+        connection.Open();
+
+        using var command = new MySqlCommand("SELECT isEmailVerified FROM Users WHERE id = @user_Id", connection);
+        command.Parameters.AddWithValue("@user_Id", userId);
+
+        return Convert.ToBoolean(command.ExecuteScalar());
+    }
 
 }
