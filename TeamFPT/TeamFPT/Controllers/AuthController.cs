@@ -22,7 +22,6 @@ namespace TeamFPT.Controllers
         private readonly JwtTokenGenerator _jwtTokenGenerator;
         private readonly EmailService _emailService;
         private readonly RedisServices _redisServices;
-
         public AuthController(UserRepository userRepositories, IConfiguration configuration, JwtTokenGenerator jwtTokenGenerator, EmailService emailService, RedisServices redisServices)
         {
             _userRepositories = userRepositories;
@@ -77,7 +76,7 @@ namespace TeamFPT.Controllers
         [HttpPost("change-password")]
         public IActionResult ChangePassword([FromBody] ChangePasswordRequest request)
         {
-            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));  // Lấy userId từ JWT token
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)); 
 
             try
             {

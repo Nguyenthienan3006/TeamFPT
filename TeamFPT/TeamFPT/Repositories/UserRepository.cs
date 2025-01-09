@@ -5,22 +5,22 @@ using System.Security.Cryptography;
 using System.Text;
 using TeamFPT.DTO;
 using TeamFPT.Model;
+using TeamFPT.Services;
 
 namespace TeamFPT.Repositories
 {
     public class UserRepository
     {
-        private readonly string _connectionString;
+        private readonly DatabaseConnection _dbConnection;
         public UserRepository(IConfiguration configuration)
         {
-            _connectionString = configuration.GetConnectionString("MySqlConnection");
+            var _connectionString = configuration.GetConnectionString("MySqlConnection");
+            _dbConnection = new DatabaseConnection(_connectionString);
         }
 
         public UserAuthentication Login(string username, string password)
         {
-            using var connection = new MySqlConnection(_connectionString);
-          connection.Open();
-
+            using var connection = _dbConnection.GetConnection();
             using var command = new MySqlCommand("Login", connection);
             command.CommandType = CommandType.StoredProcedure;
             command.Parameters.AddWithValue("@p_Username", username);
@@ -50,12 +50,9 @@ namespace TeamFPT.Repositories
         }
         public void Register(RegisterRequest request)
         {
-            using var connection = new MySqlConnection(_connectionString);
-            connection.Open();
-
+            using var connection = _dbConnection.GetConnection();
             using var command = new MySqlCommand("Register", connection);
             command.CommandType = CommandType.StoredProcedure;
-
             command.Parameters.AddWithValue("@p_FirstName", request.FirstName);
             command.Parameters.AddWithValue("@p_LastName", request.LastName);
             command.Parameters.AddWithValue("@p_Address", request.Address);
@@ -68,9 +65,7 @@ namespace TeamFPT.Repositories
         public void SaveOtp(string email, string otp)
         {
             CleanupExpiredOtp();
-            using var connection = new MySqlConnection(_connectionString);
-            connection.Open();
-
+            using var connection = _dbConnection.GetConnection();
             var command = new MySqlCommand("SaveOtp", connection);
             command.CommandType = CommandType.StoredProcedure;
             command.Parameters.AddWithValue("@p_Otp", otp);
@@ -81,23 +76,18 @@ namespace TeamFPT.Repositories
 
         public bool IsUniqueEmail(string email)
         {
-            using var connection = new MySql.Data.MySqlClient.MySqlConnection(_connectionString);
-            connection.Open();
-
+            using var connection = _dbConnection.GetConnection();
             using var command = new MySqlCommand("IsUniqueEmail", connection);
             command.CommandType = CommandType.StoredProcedure;
             command.Parameters.AddWithValue("@p_Email", email);
-
             return (long)command.ExecuteScalar() == 0;
         }
         public bool CheckEmailExists(string email)
         {
-            using var connection = new MySqlConnection(_connectionString);
-            connection.Open();
+            using var connection = _dbConnection.GetConnection();
             using var command = new MySqlCommand("CheckEmailExists", connection);
             command.CommandType = CommandType.StoredProcedure;
             command.Parameters.AddWithValue("@p_Email", email);
-
             return (long)command.ExecuteScalar() > 0;
         }
 
@@ -126,8 +116,7 @@ namespace TeamFPT.Repositories
         }
         private bool IsUniqueUsername(string username)
         {
-            using var connection = new MySql.Data.MySqlClient.MySqlConnection(_connectionString);
-            connection.Open();
+            using var connection = _dbConnection.GetConnection();
             using var command = new MySqlCommand("CheckUsernameExists", connection);
             command.CommandType = CommandType.StoredProcedure;
             command.Parameters.AddWithValue("@p_Username", username);
@@ -135,8 +124,7 @@ namespace TeamFPT.Repositories
         }
         public bool VerifyOtp(string email, string otp)
         {
-            using var connection = new MySqlConnection(_connectionString);
-            connection.Open();
+            using var connection = _dbConnection.GetConnection();
             int tokenId;
             using (var command = new MySqlCommand(
                 "SELECT t.TokenId, t.Expiration " +
@@ -154,8 +142,6 @@ namespace TeamFPT.Repositories
                 }
                 tokenId = reader.GetInt32("TokenId");
             }
-
-            // Xác minh email
             using (var updateCommand = new MySqlCommand(
                 "UPDATE UserAuthentication SET IsVerified = 1 WHERE UserId = " +
                 "(SELECT UserId FROM Tokens WHERE TokenId = @TokenId)", connection))
@@ -174,18 +160,14 @@ namespace TeamFPT.Repositories
 
         public void CleanupExpiredOtp()
         {
-            using var connection = new MySqlConnection(_connectionString);
-            connection.Open();
-
+            using var connection = _dbConnection.GetConnection();
             using var command = new MySqlCommand("CleanupExpiredOtp", connection);
             command.CommandType = CommandType.StoredProcedure;
             command.ExecuteNonQuery();
         }
         public void ChangePassword(int userId, string oldPassword, string newPassword)
         {
-            using var connection = new MySqlConnection(_connectionString);
-            connection.Open();
-
+            using var connection = _dbConnection.GetConnection();
             var command = new MySqlCommand("ChangePassword", connection)
             {
                 CommandType = CommandType.StoredProcedure
@@ -200,8 +182,7 @@ namespace TeamFPT.Repositories
         public void SaveResetPasswordOtp(string email, string otp)
         {
             CleanupExpiredOtp();
-            using var connection = new MySqlConnection(_connectionString);
-            connection.Open();
+            using var connection = _dbConnection.GetConnection();
             using var command = new MySqlCommand("SaveResetPasswordOtp", connection);
             command.CommandType = CommandType.StoredProcedure;
             command.Parameters.AddWithValue("p_Email", email);
@@ -211,9 +192,7 @@ namespace TeamFPT.Repositories
 
         public bool VerifyResetPasswordOtp(string email, string otp)
         {
-            using var connection = new MySqlConnection(_connectionString);
-            connection.Open();
-
+            using var connection = _dbConnection.GetConnection();
             var command = new MySqlCommand(
                 "SELECT u.UserId FROM UserAuthentication u " +
                 "JOIN Tokens t ON u.UserId = t.UserId " +
@@ -232,13 +211,11 @@ namespace TeamFPT.Repositories
             }
 
             return false;
-        }
+        } 
 
         public void UpdatePassword(string email, string newPassword)
         {
-            using var connection = new MySqlConnection(_connectionString);
-            connection.Open();
-
+            using var connection = _dbConnection.GetConnection();
             var command = new MySqlCommand("UpdatePassword", connection);
             command.CommandType = CommandType.StoredProcedure;
             command.Parameters.AddWithValue("@p_Email", email);
