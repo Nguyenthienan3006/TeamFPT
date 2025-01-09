@@ -254,8 +254,8 @@ public class UserStore
         using var connection = new MySqlConnection(_connectionString);
         connection.Open();
 
-        using var command = new MySqlCommand("UPDATE User SET isEmailVerified = 1 WHERE user_id = @user_Id", connection);
-        command.Parameters.AddWithValue("@user_Id", userId);
+        using var command = new MySqlCommand("sp_changeVerifyEmail", connection) {CommandType = System.Data.CommandType.StoredProcedure };
+        command.Parameters.AddWithValue("p_user_id", userId);
         command.ExecuteNonQuery();
     }
 
@@ -264,8 +264,8 @@ public class UserStore
         using var connection = new MySqlConnection(_connectionString);
         connection.Open();
 
-        using var command = new MySqlCommand("SELECT isEmailVerified FROM User WHERE user_id = @user_Id", connection);
-        command.Parameters.AddWithValue("@user_Id", userId);
+        using var command = new MySqlCommand("sp_isVerifyEmail", connection) {CommandType = System.Data.CommandType.StoredProcedure };
+        command.Parameters.AddWithValue("p_user_id", userId);
 
         return Convert.ToBoolean(command.ExecuteScalar());
     }

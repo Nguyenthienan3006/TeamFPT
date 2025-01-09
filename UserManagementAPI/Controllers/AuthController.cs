@@ -72,7 +72,7 @@ public class AuthController : ControllerBase
 
 
     [HttpPost("login_Save_Redis")]
-    public async Task<IActionResult> LoginRedis([FromBody] LoginRequest request, [FromServices] IDistributedCache cache)
+    public IActionResult LoginRedis([FromBody] LoginRequest request, [FromServices] IDistributedCache cache)
     {
         try
         {
@@ -85,17 +85,14 @@ public class AuthController : ControllerBase
 
             // Lưu token vào Redis
             var cacheKey = $"auth_token:{existingUser.Id}";
-            var cacheOptions = new DistributedCacheEntryOptions
-            {
-                AbsoluteExpirationRelativeToNow = TimeSpan.FromHours(1) 
-            };
-            await cache.SetStringAsync(cacheKey, token, cacheOptions);
+            var cacheOptions = new DistributedCacheEntryOptions {AbsoluteExpirationRelativeToNow = TimeSpan.FromHours(1) };
+
+            cache.SetString(cacheKey, token, cacheOptions);
 
             return Ok(new { Token = token });
         }
         catch (Exception ex)
         {
-
             Console.WriteLine($"Error in Login: {ex.Message}");
             return StatusCode(500, "An error occurred while processing your request.");
         }
@@ -111,10 +108,7 @@ public class AuthController : ControllerBase
             // Lấy token từ Redis cache
             var token = cache.GetString(cacheKey);
 
-            if (string.IsNullOrEmpty(token))
-            {
-                return NotFound("Token not found in Redis cache.");
-            }
+            if (string.IsNullOrEmpty(token)) return NotFound("Token not found in Redis cache.");
 
             return Ok(new { Token = token });
         }
