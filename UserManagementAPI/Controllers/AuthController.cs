@@ -31,6 +31,8 @@ public class AuthController : ControllerBase
     public IActionResult Register([FromBody] RegisterRequest request)
     {
         if (_userStore.UserExists(request.Username)) return BadRequest("Username already exists.");
+        
+        if (!_userStore.isValidPassWord(request.Password)) return BadRequest("Password must contain at least a number, uppercase letter, 8 character long.");
 
         var user = new User
         {
@@ -137,8 +139,10 @@ public class AuthController : ControllerBase
     public IActionResult ResetPassword([FromBody] ResetPasswordRequest request)
     {
         var user = _userStore.GetUserByUsername(request.Username);
+
         if (user == null) return NotFound("User not found.");
-           
+        if (!_userStore.isValidPassWord(request.NewPassword)) return BadRequest("Password must contain at least a number, uppercase letter, 8 character long.");
+
         var isValidOtp = _userStore.ValidateOtp(user.Id, request.Otp, "change_password");
         if (!isValidOtp) return BadRequest("Invalid or expired OTP.");
             

@@ -5,6 +5,7 @@ using UserManagementAPI.Models;
 using System.Configuration;
 using System.Security.Cryptography;
 using UserManagementAPI.DTOs;
+using System.Text.RegularExpressions;
 
 namespace UserManagementAPI.Data;
 
@@ -30,12 +31,21 @@ public class UserStore
         command.Parameters.AddWithValue("p_username", username);
 
         using var reader = command.ExecuteReader();
-        if (reader.Read())
-        {
-            return reader.GetInt32("user_count") > 0;
-        }
+        if (reader.Read()) return reader.GetInt32("user_count") > 0;
 
         return false;
+    }
+
+    public bool isValidPassWord(string password)
+    {
+        /*Regex regex = new Regex(@"^(.{0,7}|[^0-9]*|[^A-Z])$");
+        
+        return regex.IsMatch(password);*/
+        //if (password.Length < 8) return false;
+        if (!password.Any(char.IsUpper)) return false;
+        if (!password.Any(char.IsDigit)) return false;
+
+        return true;
     }
 
     public void AddUser(User user)
@@ -181,7 +191,7 @@ public class UserStore
         }
     }
 
-    public void SaveToken(int userId, string token)
+/*    public void SaveToken(int userId, string token)
     {
         using var connection = new MySqlConnection(_connectionString);
         connection.Open();
@@ -191,7 +201,7 @@ public class UserStore
         command.Parameters.AddWithValue("p_otp", token);
 
         command.ExecuteNonQuery();
-    }
+    }*/
     private void MarkOtpAsUsed(int tokenId)
     {
         try
