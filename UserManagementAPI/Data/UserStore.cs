@@ -105,26 +105,31 @@ public class UserStore
 
 
 
-    public string GenerateOtp(int userId)
+    public string GenerateOtp(int userId, string type)
     {
+        // Sinh OTP ngẫu nhiên (6 chữ số)
+        var otp = new Random().Next(100000, 999999).ToString();
+
         using var connection = new MySqlConnection(_connectionString);
         connection.Open();
-
-        var otp = new Random().Next(100000, 999999).ToString();
-        //sp_GenerateSaveOTP
+        
         using var command = new MySqlCommand("sp_GenerateSaveOTP", connection)
         {
-            CommandType = System.Data.CommandType.StoredProcedure
+            CommandType = CommandType.StoredProcedure
         };
-        command.Parameters.AddWithValue("p_user_id", userId); 
+        command.Parameters.AddWithValue("p_user_id", userId);
         command.Parameters.AddWithValue("p_otp", otp);
+        command.Parameters.AddWithValue("p_type", type); // Gửi loại OTP ('change_password' hoặc 'verify_email')
+
         command.ExecuteNonQuery();
-        return otp;
+
+        return otp; // Trả về OTP để gửi qua email
     }
+
 
     public void GenerateEmailVerificationOtp(int userId)
     {
-        var otp = GenerateOtp(userId); // Hàm sinh OTP
+        var otp = GenerateOtp(userId, "verify_email"); // Hàm sinh OTP
         using var connection = new MySqlConnection(_connectionString);
         connection.Open();
         //sp_
@@ -249,7 +254,7 @@ public class UserStore
         using var connection = new MySqlConnection(_connectionString);
         connection.Open();
 
-        using var command = new MySqlCommand("UPDATE Users SET isEmailVerified = 1 WHERE id = @user_Id", connection);
+        using var command = new MySqlCommand("UPDATE User SET isEmailVerified = 1 WHERE user_id = @user_Id", connection);
         command.Parameters.AddWithValue("@user_Id", userId);
         command.ExecuteNonQuery();
     }
@@ -259,7 +264,7 @@ public class UserStore
         using var connection = new MySqlConnection(_connectionString);
         connection.Open();
 
-        using var command = new MySqlCommand("SELECT isEmailVerified FROM Users WHERE id = @user_Id", connection);
+        using var command = new MySqlCommand("SELECT isEmailVerified FROM User WHERE user_id = @user_Id", connection);
         command.Parameters.AddWithValue("@user_Id", userId);
 
         return Convert.ToBoolean(command.ExecuteScalar());

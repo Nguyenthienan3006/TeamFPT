@@ -45,28 +45,26 @@ public class AuthController : ControllerBase
         return Ok("User registered successfully.");
     }
 
-    [HttpPost("send-email-verification-otp")]
-    public IActionResult SendEmailVerificationOtp([FromBody] EmailVerificationRequest request)
+    [HttpPost("send-verification-email")]
+    public IActionResult SendVerificationEmail([FromBody] string username)
     {
-        var user = _userStore.GetUserByEmail(request.Email);
+        var user = _userStore.GetUserByUsername(username);
         if (user == null) return NotFound("User not found.");
 
-        _userStore.GenerateEmailVerificationOtp(user.Id);
-        return Ok("OTP sent for email verification.");
-    }
+        var otp = _userStore.GenerateOtp(user.Id, "verify_email");
+        _emailService.SendEmail(user.Email, "Email Verification OTP", $"Your OTP is: {otp}");
 
+        return Ok("OTP has been sent to your email.");
+    }
 
     [HttpPost("verify-email")]
     public IActionResult VerifyEmail([FromBody] VerifyEmailRequest request)
     {
-
-        var user = _userStore.GetUserByEmail(request.Email);
-        if (_userStore.IsEmailVerified(user.Id)) return BadRequest("Email is already verified.");
-        
+        var user = _userStore.GetUserByUsername(request.UserName);
         if (user == null) return NotFound("User not found.");
 
-        if (!_userStore.ValidateOtp(user.Id, request.Otp, "verify_email"))
-            return BadRequest("Invalid or expired OTP.");
+        var isValidOtp = _userStore.ValidateOtp(user.Id, request.Otp, "verify_email");
+        if (!isValidOtp) return BadRequest("Invalid or expired OTP.");
 
         _userStore.MarkEmailAsVerified(user.Id);
         return Ok("Email has been verified.");
@@ -134,7 +132,7 @@ public class AuthController : ControllerBase
         var user = _userStore.GetUserByUsername(username);
         if (user == null) return NotFound("User not found.");
 
-        var otp = _userStore.GenerateOtp(user.Id);
+        var otp = _userStore.GenerateOtp(user.Id, "change_password");
         _emailService.SendEmail(user.Email, "Reset Password OTP", $"Your OTP is: {otp}");
 
         return Ok("OTP has been sent to your email.");
@@ -147,7 +145,7 @@ public class AuthController : ControllerBase
         var user = _userStore.GetUserByUsername(request.Username);
         if (user == null) return NotFound("User not found.");
            
-        var isValidOtp = _userStore.ValidateOtp(user.Id, request.Otp, "chage_password");
+        var isValidOtp = _userStore.ValidateOtp(user.Id, request.Otp, "change_password");
         if (!isValidOtp) return BadRequest("Invalid or expired OTP.");
             
         string pw = BCrypt.Net.BCrypt.HashPassword(request.NewPassword);
