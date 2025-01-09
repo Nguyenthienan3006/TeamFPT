@@ -29,12 +29,8 @@ namespace TeamFPT.Services
 			{
 				Subject = new ClaimsIdentity(new[]
 				{
-					new Claim(ClaimTypes.NameIdentifier, user.Username),
-					new Claim(ClaimTypes.Email, user.Email),
-					new Claim("address", user.Address),
-					new Claim("phone", user.Phone),
-					new Claim(ClaimTypes.Role, user.Role),
-					new Claim("isValid", user.IsValid.ToString())
+						new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
+						new Claim(ClaimTypes.Role, user.Role)
 
 				}),
 				Issuer = _config["Jwt:Issuer"],

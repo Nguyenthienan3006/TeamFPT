@@ -19,22 +19,21 @@ namespace TeamFPT.Controllers
 		private readonly EmailService _emailService;
 		private readonly JwtService _jwtService;
 		private readonly IConfiguration _config;
+		private readonly RedisService _redisService;
 
-		public UserController(ConnectService connectService, JwtService jwtService, EmailService emailService, IConfiguration configuration)
+		public UserController(ConnectService connectService, JwtService jwtService, EmailService emailService, IConfiguration configuration, RedisService redisService)
 		{
 			_connectService = connectService;
 			_jwtService = jwtService;
 			_emailService = emailService;
 			_config = configuration;
+			_redisService = redisService;
 		}
 		[Authorize(Roles  = "admin")] 
 		[HttpGet("admin")]
 		public IActionResult GetAllUsers()
 		{
-			if (!User.IsInRole("admin"))
-			{
-				return Forbid("You are not authorized to view this.");
-			}
+			if (!User.IsInRole("admin"))return Forbid("You are not authorized to view this.");
 
 			var allUsers = _connectService.GetAllUsers(); 
 			return Ok(allUsers);
@@ -42,29 +41,15 @@ namespace TeamFPT.Controllers
 
 
 		[Authorize]
-		[HttpGet("Profile")]
-		public IActionResult Profile()
+		[HttpGet("Profile/{id}")]
+		public IActionResult Profile(int id)
 		{
-			var isValidClaim = User.Claims.FirstOrDefault(c => c.Type == "isValid");
-			if (isValidClaim == null || !bool.TryParse(isValidClaim.Value, out bool isValid) || !isValid)
-			{
-				return Forbid("You are not Verified.");
-			}
+			if(id==null) return BadRequest("id input is null");
+			if (_redisService.GetTokenFromRedisAsync(id) == null) return BadRequest("token is null");
+			User user = _connectService.GetUserById(id);
+			if(user==null) return BadRequest("user not existed");
 
-			var username = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier)?.Value;
-			var email = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Email)?.Value;
-			var address = User.Claims.FirstOrDefault(c => c.Type == "address")?.Value;
-			var phone = User.Claims.FirstOrDefault(c => c.Type == "phone")?.Value;
-
-			var userProfile = new
-			{
-				Username = username,
-				Email = email,
-				Address = address,
-				Phone = phone
-			};
-
-			return Ok(userProfile);
+			return Ok(user);
 		}
 
 
@@ -73,16 +58,12 @@ namespace TeamFPT.Controllers
 		[HttpPost("Register")]
 		public IActionResult Register([FromBody] RegisterRequestModel requestModel)
 		{
-			List<string> users = _connectService.GetAllUserNames();
-			List<string> emails = _connectService.CHeckEmail();
-				
-			if (users.Contains(requestModel.Username) || emails.Contains(requestModel.Email))
-			{
-				return BadRequest("username or email existed");
-			}
+			int result = _connectService.CheckRegister(requestModel.Email,requestModel.Username);
+			if (result == 1)return BadRequest("Username or email already exists.");
 
-			string otp = _emailService.SendOtpEmail(requestModel.Email);
-			_connectService.RegisterUser(requestModel,otp);
+			string otp = _emailService.GenerateOtp();
+			_connectService.RegisterUser(requestModel, otp);
+			_emailService.SendOtpEmail(requestModel.Email, otp);
 			return Ok("sucess");
 		}
 
@@ -90,12 +71,8 @@ namespace TeamFPT.Controllers
 		[HttpPost("VerifyOtp")]
 		public IActionResult VerifyOtp([FromBody] VerifyOtpRequestModel verifyModel)
 		{
-			OTP oTPDto = _connectService.GetOTP(verifyModel.Email);
-				
-			if (oTPDto.Value != verifyModel.Otp|| DateTime.UtcNow > oTPDto.Date.AddMinutes(15))
-			{
-					return BadRequest("Invalid OTP.");
-			}
+			OTP oTPDto = _connectService.GetOTP(verifyModel.Email , "registration");
+			if (oTPDto.Value != verifyModel.Otp|| DateTime.UtcNow > oTPDto.Date.AddMinutes(15)) return BadRequest("Invalid OTP.");
 
 			_connectService.VerifyUser(verifyModel.Email);
 			return Ok("Verify Sucess");
@@ -106,13 +83,12 @@ namespace TeamFPT.Controllers
 		[HttpPost("ResetPassword")]
 		public IActionResult ResetPass([FromBody] ResetPassRequestModel requestModel)
 		{
-			if (!_connectService.IsEmailExisted(requestModel))
-			{
-					return BadRequest("Email Not Existed");
-			}
+			if (_connectService.CheckRegister(requestModel.Email,requestModel.Username)<1) return BadRequest("Email or Username Not Existed");
 
-			string otp =_emailService.SendOtpEmail(requestModel.Email);
+			string otp = _emailService.GenerateOtp();
 			_connectService.ResetPassRequest(requestModel.Email,otp);
+			_emailService.SendOtpEmail(requestModel.Email, otp);
+
 			return Ok("sucess");
 		}
 
@@ -120,22 +96,11 @@ namespace TeamFPT.Controllers
 		[HttpPost("ConfirmResetPass")]
 		public IActionResult VerifyOtpResetPass([FromBody] VerifyResetPassRequestModel verifyModel)
 		{
-
-			OTP oTPDto = _connectService.GetOTP(verifyModel.Email);
-
-			if (verifyModel.Password != verifyModel.RepeatPassword)
-			{
-				return BadRequest("Password and ConfirmPassword are not match");
-			}
-
-			if (oTPDto.Value != verifyModel.Otp || DateTime.UtcNow > oTPDto.Date.AddMinutes(15))
-			{
-				return BadRequest("Invalid OTP.");
-			}
+			OTP oTPDto = _connectService.GetOTP(verifyModel.Email, "resetPassord");
+			if (oTPDto.Value != verifyModel.Otp || DateTime.UtcNow > oTPDto.Date.AddMinutes(15)) return BadRequest("Invalid OTP.");
 
 			_connectService.ResetPassword(verifyModel.Email,verifyModel.Password);
 			return Ok("Reset Sucess");
-
 		}
 		
 	}

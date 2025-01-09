@@ -45,8 +45,7 @@ namespace TeamFPT.Services
 									Email = reader.GetString("email"),
 									Address = reader.GetString("address"),
 									Phone = reader.GetString("phone"),
-									Role = reader.GetString("role"),
-									IsValid = reader.GetBoolean("isvalid")
+									Role = reader.GetString("role")
 								};
 
 							}
@@ -55,33 +54,6 @@ namespace TeamFPT.Services
 				}
 			}
 			return currentUser;
-		}
-
-
-		public bool IsEmailExisted(ResetPassRequestModel model)
-		{
-			bool userExists = false;
-
-			using (var connection = new MySqlConnection(_connectionString))
-			{
-				connection.Open();
-				using (var command = new MySqlCommand("CheckEmailofResetRequest", connection))
-				{
-					command.CommandType = CommandType.StoredProcedure;
-					command.Parameters.AddWithValue("inputname", model.Username);
-					command.Parameters.AddWithValue("inputemail", model.Email);  
-
-					using (var reader = command.ExecuteReader())
-					{
-						if (reader.Read())
-						{
-							userExists = true;  
-						}
-					}
-				}
-			}
-
-			return userExists; 
 		}
 
 		public List<User> GetAllUsers()
@@ -112,59 +84,62 @@ namespace TeamFPT.Services
 					}
 				}
 			}
-
 			return users;
 		}
 
-		public List<string> GetAllUserNames()
+		public User GetUserById(int userId)
 		{
-			var users = new List<string>();
+			User user = null;
 
 			using (var connection = new MySqlConnection(_connectionString))
 			{
 				connection.Open();
-				using (var command = new MySqlCommand("GetUserNames", connection))
+				using (var command = new MySqlCommand("GetUser", connection))
 				{
 					command.CommandType = CommandType.StoredProcedure;
 
+					// Add the parameter for the user ID
+					command.Parameters.AddWithValue("Pid", userId);
+
 					using (var reader = command.ExecuteReader())
 					{
-						while (reader.Read())
+						if (reader.Read())
 						{
-							string username = reader.GetString("name");
-							users.Add(username);
+							user = new User
+							{
+								Id = reader.GetInt32("id"),
+								Username = reader.GetString("name"),
+								Email = reader.GetString("email"),
+								Address = reader.GetString("address"),
+								Phone = reader.GetString("phone"),
+								Role = reader.GetString("role")
+							};
 						}
 					}
 				}
 			}
-
-			return users;
+			return user;
 		}
 
-		public List<string> CHeckEmail()
+		public int CheckRegister(string email, string name)
 		{
-			var strings = new List<string>();
+			int result = 0; 
 
 			using (var connection = new MySqlConnection(_connectionString))
 			{
 				connection.Open();
-				using (var command = new MySqlCommand("GetEmails", connection))
+				using (var command = new MySqlCommand("checkRegister", connection))
 				{
 					command.CommandType = CommandType.StoredProcedure;
-
-					using (var reader = command.ExecuteReader())
-					{
-						while (reader.Read())
-						{
-							string email = reader.GetString("email");
-							strings.Add(email);
-						}
-					}
+					command.Parameters.AddWithValue("Pemail", email);
+					command.Parameters.AddWithValue("Pname", name);
+					
+					result = Convert.ToInt32(command.ExecuteScalar()); 
 				}
 			}
-
-			return strings;
+			return result;
 		}
+
 		public void RegisterUser(RegisterRequestModel model, string otp)
 		{
 			
@@ -178,13 +153,13 @@ namespace TeamFPT.Services
 				{
 					command.CommandType = CommandType.StoredProcedure;
 
-					command.Parameters.AddWithValue("registername", model.Username);
-					command.Parameters.AddWithValue("registerpassword", hashedPassword); 
-					command.Parameters.AddWithValue("registeremail", model.Email);
-					command.Parameters.AddWithValue("registeraddress", model.Address);
-					command.Parameters.AddWithValue("registerphone", model.Phone);
+					command.Parameters.AddWithValue("Pname", model.Username);
+					command.Parameters.AddWithValue("Ppassword", hashedPassword); 
+					command.Parameters.AddWithValue("Pemail", model.Email);
+					command.Parameters.AddWithValue("Paddress", model.Address);
+					command.Parameters.AddWithValue("Pphone", model.Phone);
 					command.Parameters.AddWithValue("OTPvalue", otp);
-					command.Parameters.AddWithValue("inputdate", DateTime.UtcNow);
+					command.Parameters.AddWithValue("Pdate", DateTime.UtcNow);
 
 					var result = command.ExecuteNonQuery();
 				}
@@ -196,6 +171,7 @@ namespace TeamFPT.Services
 			// Mã hóa mật khẩu sử dụng bcrypt với salt tự động
 			return BCrypt.Net.BCrypt.HashPassword(password);
 		}
+
 		public string GetHashedPassword(string username)
 		{
 			string hashedPassword = null;
@@ -218,11 +194,10 @@ namespace TeamFPT.Services
 					}
 				}
 			}
-
 			return hashedPassword; 
 		}
 
-		public void VerifyUser(string username)
+		public void VerifyUser(string email)
 		{
 			using (var connection = new MySqlConnection(_connectionString))
 			{
@@ -231,12 +206,12 @@ namespace TeamFPT.Services
 				using (var command = new MySqlCommand("VerifyUser", connection))
 				{
 					command.CommandType = CommandType.StoredProcedure;
-					command.Parameters.AddWithValue("inputname", username);
+					command.Parameters.AddWithValue("Pemail", email);
 					var result = command.ExecuteNonQuery();
 				}
 			}
-
 		}
+
 		public void ResetPassword(string username,string password)
 		{
 			string hashedPassword = HashPassword(password);
@@ -247,14 +222,14 @@ namespace TeamFPT.Services
 				using (var command = new MySqlCommand("ResetPassword", connection))
 				{
 					command.CommandType = CommandType.StoredProcedure;
-					command.Parameters.AddWithValue("inputname", username);
-					command.Parameters.AddWithValue("inputpass", hashedPassword);
+					command.Parameters.AddWithValue("Pemail", username);
+					command.Parameters.AddWithValue("Ppass", hashedPassword);
 					var result = command.ExecuteNonQuery();
 				}
 			}
-
 		}
-		public OTP GetOTP(string username)
+
+		public OTP GetOTP(string email, string type)
 		{
 			OTP oTPDto = null; 
 
@@ -266,8 +241,9 @@ namespace TeamFPT.Services
 				{
 					command.CommandType = CommandType.StoredProcedure;
 
-					command.Parameters.AddWithValue("inputname", username);
-					command.Parameters.AddWithValue("inputemail", username);
+					command.Parameters.AddWithValue("Pemail", email);
+					command.Parameters.AddWithValue("Ptype", type);
+
 
 					using (var reader = command.ExecuteReader()) 
 					{
@@ -275,16 +251,16 @@ namespace TeamFPT.Services
 						{
 							oTPDto = new OTP
 							{
-								Value = reader.GetString(reader.GetOrdinal("OTP")), 
-								Date = reader.GetDateTime(reader.GetOrdinal("Time")), 
+								Value = reader.GetString(reader.GetOrdinal("value")), 
+								Date = reader.GetDateTime(reader.GetOrdinal("date")), 
 							};
 						}
 					}
 				}
 			}
-
 			return oTPDto; 
 		}
+
 		public void ResetPassRequest(string email, string otp)
 		{
 			using (var connection = new MySqlConnection(_connectionString))
@@ -295,16 +271,13 @@ namespace TeamFPT.Services
 				{
 					command.CommandType = CommandType.StoredProcedure;
 
-					command.Parameters.AddWithValue("inputemail", email); 
+					command.Parameters.AddWithValue("Pemail", email); 
 					command.Parameters.AddWithValue("OTPvalue", otp);    
-					command.Parameters.AddWithValue("inputdate", DateTime.UtcNow); 
+					command.Parameters.AddWithValue("Pdate", DateTime.UtcNow); 
 
 					command.ExecuteNonQuery();
 				}
 			}
 		}
-
-
 	}
-
 }

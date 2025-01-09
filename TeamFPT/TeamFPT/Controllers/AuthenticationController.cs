@@ -12,33 +12,26 @@ namespace TeamFPT.Controllers
 	{
 		private readonly ConnectService _connectService;
 		private readonly JwtService _jwtService;
+		private readonly RedisService _redisService;
 
-		public AuthenticationController(ConnectService connectService, JwtService jwtService)
+
+		public AuthenticationController(ConnectService connectService, JwtService jwtService , RedisService redis)
 		{
 			_connectService = connectService ;
 			_jwtService = jwtService;
+			_redisService = redis;
 		}
 
 		[AllowAnonymous]
 		[HttpPost("login")]
 		public IActionResult Login([FromBody] LoginRequestModel userLogin)
 		{
-			if (userLogin == null || string.IsNullOrEmpty(userLogin.UserName) || string.IsNullOrEmpty(userLogin.PassWord))
-			{
-				return BadRequest("Invalid login details.");
-			}
-
+			if (userLogin == null || string.IsNullOrEmpty(userLogin.UserName) || string.IsNullOrEmpty(userLogin.PassWord))	return BadRequest("Invalid login details.");
 			var user = _connectService.Authenticate(userLogin);
-
-			if (user != null && user.IsValid==true)
-			{
-				var token = _jwtService.GenerateToken(user);
-
-				
-				return Ok(token);
-			}
-
-			return Unauthorized("Invalid credentials.");
+			if (user == null) return BadRequest("Worng username or password");
+			var token = _jwtService.GenerateToken(user);
+			_redisService.SaveTokenToRedisAsync(token, user.Id);
+			return Ok(token);
 		}
 	}
 

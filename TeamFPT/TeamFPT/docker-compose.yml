@@ -22,7 +22,7 @@ services:
     environment:
       MYSQL_USER: dev
       MYSQL_PASSWORD: 123abc@A
-      MYSQL_DATABASE: project_demo
+      MYSQL_DATABASE: project_demo_huynq
     volumes:
       - db_data:/var/lib/mysql
     networks:

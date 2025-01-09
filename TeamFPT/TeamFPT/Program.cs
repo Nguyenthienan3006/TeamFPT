@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authentication.JwtBearer;
+﻿using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using System.Text;
@@ -20,7 +20,9 @@ namespace TeamFPT
 			builder.Services.AddScoped<ConnectService>();
 			builder.Services.AddScoped<EmailService>();
 			builder.Services.AddScoped<JwtService>();
-			
+			builder.Services.AddScoped<RedisService>();
+
+
 			builder.Services.AddSwaggerGen(options =>
 			{
 				var jwtSecurityScheme = new OpenApiSecurityScheme
@@ -37,12 +39,13 @@ namespace TeamFPT
 						Type = ReferenceType.SecurityScheme
 					}
 				};
-
+				
 				options.AddSecurityDefinition("Bearer", jwtSecurityScheme);
 				options.AddSecurityRequirement(new OpenApiSecurityRequirement
 				{
 					{ jwtSecurityScheme, Array.Empty<string>() }
 				});
+				options.EnableAnnotations();
 			});
 
 			
@@ -71,8 +74,13 @@ namespace TeamFPT
                 );
             builder.Services.AddAuthorization();
 
+			builder.Services.AddStackExchangeRedisCache(options =>
+			{
+				options.Configuration = "localhost:6379"; // Chuỗi kết nối Redis
+				options.InstanceName = "JwtTokenCache:"; // Tiền tố cho các key trong Redis
+			});
 
-            var app = builder.Build();
+			var app = builder.Build();
 
             // Configure the HTTP request pipeline.
             if (app.Environment.IsDevelopment())
@@ -84,7 +92,7 @@ namespace TeamFPT
 				});
 			}
 
-            app.UseHttpsRedirection();
+			app.UseHttpsRedirection();
 			app.UseAuthentication();
 			app.UseAuthorization();
             app.MapControllers();

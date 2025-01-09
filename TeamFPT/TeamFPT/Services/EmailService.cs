@@ -21,14 +21,13 @@ namespace TeamFPT.Services
 		}
 
 
-		public string SendOtpEmail(string recipientEmail)
+		public string SendOtpEmail(string recipientEmail , string otp)
 		{
 			string smtpHost = "smtp.gmail.com"; //SMTP host for gmail
 			int smtpPort = 587; 
 			string senderEmail = "ngoquochuyvn2004@gmail.com"; // replace with the sender's email
 			string senderPassword = "qswq nqke npjw kkwo"; // replace with the sender's password
 
-			string otp = GenerateOtp();
 			string subject = "Your OTP Code";
 			string body = $"Your One-Time Password (OTP) is: {otp}";
 
