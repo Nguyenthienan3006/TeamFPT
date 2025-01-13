@@ -19,5 +19,13 @@ namespace TeamFPT.DTO
             ErrorMessage = "Password must contain at least one uppercase letter, one lowercase letter, one number and one special character")]
         public string Password { get; set; }
         public string UserRole { get; set; } = "Customer";
+        [Required]
+        public int ProvinceID { get; set; }
+
+        [Required]
+        public int DistrictID { get; set; }
+
+        [Required]
+        public int WardID { get; set; }  // Thêm WardID vào
     }
 }

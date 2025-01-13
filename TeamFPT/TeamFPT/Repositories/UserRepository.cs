@@ -51,17 +51,25 @@ namespace TeamFPT.Repositories
         public void Register(RegisterRequest request)
         {
             using var connection = _dbConnection.GetConnection();
-            using var command = new MySqlCommand("Register", connection);
-            command.CommandType = CommandType.StoredProcedure;
+            using var command = new MySqlCommand("Register", connection)
+            {
+                CommandType = CommandType.StoredProcedure
+            };
+
             command.Parameters.AddWithValue("@p_FirstName", request.FirstName);
             command.Parameters.AddWithValue("@p_LastName", request.LastName);
             command.Parameters.AddWithValue("@p_Address", request.Address);
+            command.Parameters.AddWithValue("@p_ProvinceID", request.ProvinceID);
+            command.Parameters.AddWithValue("@p_DistrictID", request.DistrictID);
+            command.Parameters.AddWithValue("@p_WardID", request.WardID);
             command.Parameters.AddWithValue("@p_Email", request.Email);
             command.Parameters.AddWithValue("@p_Username", request.Username);
             command.Parameters.AddWithValue("@p_Password", request.Password);
             command.Parameters.AddWithValue("@p_UserRole", request.UserRole);
+
             command.ExecuteNonQuery();
         }
+
         public void SaveOtp(string email, string otp)
         {
             CleanupExpiredOtp();
@@ -82,6 +90,81 @@ namespace TeamFPT.Repositories
             command.Parameters.AddWithValue("@p_Email", email);
             return (long)command.ExecuteScalar() == 0;
         }
+        public List<Provinces> GetAllProvinces()
+        {
+            using var connection = _dbConnection.GetConnection();
+            var provinces = new List<Provinces>();
+
+            using (var command = new MySqlCommand("getAllProvinces", connection))
+            {
+                command.CommandType = CommandType.StoredProcedure;
+
+                using (var reader = command.ExecuteReader())
+                {
+                    while (reader.Read())
+                    {
+                        provinces.Add(new Provinces
+                        {
+                            ProvinceID = reader.GetInt32("ProvinceID"),
+                            ProvinceName = reader.GetString("ProvinceName")
+                        });
+                    }
+                }
+            }
+
+            return provinces;
+        }
+        public List<Districts> GetDistrictsByProvinceId(int provinceId)
+        {
+            using var connection = _dbConnection.GetConnection();
+            var districts = new List<Districts>();
+
+            using (var command = new MySqlCommand("getDistrictByProvinceID", connection))
+            {
+                command.CommandType = CommandType.StoredProcedure;
+                command.Parameters.AddWithValue("@p_ProvinceID", provinceId);
+
+                using (var reader = command.ExecuteReader())
+                {
+                    while (reader.Read())
+                    {
+                        districts.Add(new Districts
+                        {
+                            DistrictID = reader.GetInt32("DistrictID"),
+                            DistrictName = reader.GetString("DistrictName")
+                        });
+                    }
+                }
+            }
+
+            return districts;
+        }
+        public List<Wards> GetWardsByDistrictId(int districtId)
+        {
+            using var connection = _dbConnection.GetConnection();
+            var wards = new List<Wards>();
+
+            using (var command = new MySqlCommand("GetWardsByDistrictId", connection))
+            {
+                command.CommandType = CommandType.StoredProcedure;
+                command.Parameters.AddWithValue("@p_DistrictID", districtId);
+
+                using (var reader = command.ExecuteReader())
+                {
+                    while (reader.Read())
+                    {
+                        wards.Add(new Wards
+                        {
+                            WardID = reader.GetInt32("WardID"),
+                            WardName = reader.GetString("WardName"),
+                        });
+                    }
+                }
+            }
+
+            return wards;
+        }
+
         public bool CheckEmailExists(string email)
         {
             using var connection = _dbConnection.GetConnection();
@@ -222,6 +305,80 @@ namespace TeamFPT.Repositories
             command.Parameters.AddWithValue("@p_NewPassword", newPassword);
 
             command.ExecuteNonQuery();
+        }
+        public Provinces GetProvinceById(int provinceId)
+        {
+            using var connection = _dbConnection.GetConnection();
+
+            using (var command = new MySqlCommand("GetProvinceById", connection))
+            {
+                command.CommandType = CommandType.StoredProcedure;
+                command.Parameters.AddWithValue("@p_ProvinceID", provinceId);
+
+                using (var reader = command.ExecuteReader())
+                {
+                    if (reader.Read())
+                    {
+                        return new Provinces
+                        {
+                            ProvinceID = reader.GetInt32("ProvinceID"),
+                            ProvinceName = reader.GetString("ProvinceName")
+                        };
+                    }
+                }
+            }
+
+            return null; // Nếu không tìm thấy
+        }
+        public Districts GetDistrictById(int districtId)
+        {
+            using var connection = _dbConnection.GetConnection();
+
+            using (var command = new MySqlCommand("GetDistrictById", connection))
+            {
+                command.CommandType = CommandType.StoredProcedure;
+                command.Parameters.AddWithValue("@p_DistrictID", districtId);
+
+                using (var reader = command.ExecuteReader())
+                {
+                    if (reader.Read())
+                    {
+                        return new Districts
+                        {
+                            DistrictID = reader.GetInt32("DistrictID"),
+                            DistrictName = reader.GetString("DistrictName"),
+                            ProvinceID = reader.GetInt32("ProvinceID")
+                        };
+                    }
+                }
+            }
+
+            return null;
+        }
+        public Wards GetWardById(int wardId)
+        {
+            using var connection = _dbConnection.GetConnection();
+
+            using (var command = new MySqlCommand("GetWardById", connection))
+            {
+                command.CommandType = CommandType.StoredProcedure;
+                command.Parameters.AddWithValue("@p_WardID", wardId);
+
+                using (var reader = command.ExecuteReader())
+                {
+                    if (reader.Read())
+                    {
+                        return new Wards
+                        {
+                            WardID = reader.GetInt32("WardID"),
+                            WardName = reader.GetString("WardName"),
+                            DistrictID = reader.GetInt32("DistrictID")
+                        };
+                    }
+                }
+            }
+
+            return null;
         }
 
     }

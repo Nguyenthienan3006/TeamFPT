@@ -55,12 +55,21 @@ namespace TeamFPT.Controllers
             var validationResult = _userRepositories.ValidateUser(user);
             if (validationResult.IsValid)
             {
+                var province = _userRepositories.GetProvinceById(user.ProvinceID);
+                var district = _userRepositories.GetDistrictById(user.DistrictID);
+                var ward = _userRepositories.GetWardById(user.WardID);
+
+                if (province == null || district == null || ward == null) return BadRequest(new { Errors = "Invalid Province, District, or Ward" });
+                if (district.ProvinceID != user.ProvinceID)return BadRequest(new { Errors = "District does not belong to the specified Province." });
+                if (ward == null || ward.DistrictID != user.DistrictID) return BadRequest(new { Errors = "Ward does not belong to the specified District." });
                 _userRepositories.Register(user);
                 var otp = _userRepositories.GenerateOtp();
                 _userRepositories.SaveOtp(user.Email, otp);
                 _emailService.SendOtpEmailAsync(user.Email, otp);
+
                 return Ok("User registered successfully. Please verify your email with the OTP sent.");
             }
+
             return BadRequest(new { Errors = validationResult.Errors });
         }
         [HttpPost("verify-otp")]
@@ -105,6 +114,23 @@ namespace TeamFPT.Controllers
             _userRepositories.UpdatePassword(request.Email, request.NewPassword);
             return Ok("Password reset successfully.");
         }
-
+        [HttpGet("provinces")]
+        public IActionResult GetProvinces()
+        {
+            var provinces = _userRepositories.GetAllProvinces();
+            return Ok(provinces);
+        }
+        [HttpGet("districts/{provinceId}")]
+        public IActionResult GetDistricts(int provinceId)
+        {
+            var districts = _userRepositories.GetDistrictsByProvinceId(provinceId);
+            return Ok(districts);
+        }
+        [HttpGet("wards/{districtId}")]
+        public IActionResult GetWards(int districtId)
+        {
+            var wards = _userRepositories.GetWardsByDistrictId(districtId);
+            return Ok(wards);
+        }
     }
 }
